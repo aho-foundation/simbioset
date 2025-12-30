@@ -1,42 +1,43 @@
 # Changelog
 
-## [0.5.0] - 2025-12-30
 
-### Fixed
-- **Dockerfile DNS issues**: Исправлены проблемы с DNS разрешением во время сборки образов
-- **Stage references**: Исправлены неправильные ссылки на stages в COPY --from директивах
-- **Multi-stage build**: Улучшена стабильность сборки multi-stage Docker образов
+## [0.4.2] - 2025-12-30
 
 ### Added
-- **Полное отключение Weaviate**: WEAVIATE_DISABLED настройка для использования только FAISS
-- **Улучшенная логика выбора storage**: Более надежная логика выбора между Weaviate и FAISS
-
-### Added
-- **Fallback к FAISS**: WEAVIATE_FALLBACK_TO_FAISS настройка для автоматического переключения на FAISS при недоступности Weaviate
-- **Graceful degradation**: Приложение продолжает работать с FAISS если Weaviate недоступен
-
-### Added
+- **Detailed gRPC logging**: Добавлено подробное логирование процесса gRPC подключения к Weaviate
+- **Auto gRPC URL derivation**: Автоматическое вычисление gRPC URL из HTTP URL если не задан явно
+- **Playwright browser installation**: Улучшена установка браузеров Playwright в Docker образах
+- **Weaviate HNSW optimization**: Оптимизированные настройки HNSW индекса (ef_construction=256, max_connections=32, dynamic ef)
+- **Batch size optimization**: Увеличен batch_size до 500 для лучшей производительности импорта
+- **Configurable Weaviate settings**: Переменные окружения для настройки HNSW параметров, batch size, памяти и lazy loading
+- **Built-in Weaviate AutoSchema**: Переход на встроенную AutoSchema Weaviate для органической эволюции симбиосети
+- **Adaptive schema for symbiocore**: Схема автоматически адаптируется к новым симбиотическим связям и паттернам
+- **WEAVIATE_USE_BUILTIN_AUTOSCHEMA**: Включена по умолчанию для поддержки динамической структуры данных
+- **Schema code cleanup**: Удалены устаревшие функции ручного управления схемой, оставлены заглушки для совместимости
+- **Unit tests update**: Обновлены unit тесты для работы с новой архитектурой AutoSchema
+- **Hybrid classification**: Гибридная классификация параграфов с использованием Weaviate + LLM для улучшения точности
+- **NER integration**: Полная интеграция Named Entity Recognition - автоматическое извлечение организмов, локаций и экосистем из текста
+- **Entity storage**: Новое поле organisms в Paragraph для хранения извлеченных сущностей
 - **gRPC как основной протокол**: WEAVIATE_PREFER_GRPC настройка для использования gRPC по умолчанию
 - **Оптимизация подключения**: gRPC режим активирован для максимальной производительности векторных операций
-
-### Fixed
-- **Weaviate gRPC URL**: Исправлено использование WEAVIATE_GRPC_URL вместо жестко прописанного grpc_port=50051
-- **Парсинг gRPC параметров**: Добавлен правильный парсинг grpc_host и grpc_port из WEAVIATE_GRPC_URL
-
-### Added
 - **Развертывание Weaviate в Dokku**: Инструкции по развертыванию Weaviate как отдельного приложения
 - **Подключение приложений к Weaviate**: Настройка переменных окружения для внутреннего сетевого доступа
 
 ### Fixed
+- **Weaviate gRPC connection**: Исправлена логика подключения к Weaviate по gRPC - теперь достаточно задать только `WEAVIATE_GRPC_URL`
+- **Storage selection logic**: Упрощена логика выбора хранилища, убрана зависимость от `WEAVIATE_URL` для gRPC подключения
+- **Dockerfile Playwright**: Исправлена установка Playwright браузеров в Docker, добавлена установка в runtime стадии
+- **Burger menu condition**: Исправлено условие включения аналитической панели - теперь активируется при >2 сообщениях вместо >=2
+- **Dockerfile DNS issues**: Исправлены проблемы с DNS разрешением во время сборки образов
+- **Stage references**: Исправлены неправильные ссылки на stages в COPY --from директивах
+- **Multi-stage build**: Улучшена стабильность сборки multi-stage Docker образов
+- **Weaviate gRPC URL**: Исправлено использование WEAVIATE_GRPC_URL вместо жестко прописанного grpc_port=50051
+- **Парсинг gRPC параметров**: Добавлен правильный парсинг grpc_host и grpc_port из WEAVIATE_GRPC_URL
 - **Проверка и установка пакетов в persistent venv**: Добавлена логика проверки наличия granian в persistent venv и переустановка при необходимости
 - **Отладка запуска приложения**: Добавлены проверки активации venv и наличия granian
-
-### Fixed
 - **Отсутствующий venv в production контейнере**: Добавлено копирование `/opt/venv` из python-deps stage
 - **Восстановлен start.sh**: Вернут startup script с логикой создания symlink для persistent venv
 - **Исправлен CMD**: Возвращен запуск через start.sh вместо прямого uv run
-
-### Fixed
 - **UID пользователя appuser**: Возвращен к стандартному Dokku UID 1000
   - Dockerfile изменен с UID 999 обратно на 1000
   - scripts/setup_dokku_cache.sh использует chown 1000:1000

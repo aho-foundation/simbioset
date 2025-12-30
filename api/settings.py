@@ -9,28 +9,8 @@ load_dotenv()
 
 WEBHOOK_URL = "https://simbioset.ru/bot"
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-default_models = [
-    "deepseek-r1",
-    "deepseek-v3",
-    "gemini-2.0-flash",
-    "gemini-2.5-pro",
-    "gpt-oss-120b",
-    "llama-4-maverick",
-    "llama-4-scout",
-    "qwen-3-0.6b",
-    "qwen-3-1.7b",
-    "qwen-3-14b",
-    "qwen-3-235b",
-    "qwen-3-30b",
-    "qwen-3-32b",
-    "qwen-3-4b",
-    "command-a",
-    "command-r",
-    "command-r7b",
-    "o4-mini",
-]
 
-MODELS_LIST = os.getenv("MODELS_LIST", default_models)
+MODELS_LIST: list[str] = os.getenv("MODELS_LIST", "").split(",") if os.getenv("MODELS_LIST") else []
 
 # Корневая директория проекта
 ROOT_DIR = Path(__file__).parent.absolute()
@@ -107,9 +87,37 @@ LLM_PROXY_TOKEN = os.getenv("LLM_PROXY_TOKEN", "")
 
 # Weaviate Vector Database
 # HTTP URL для REST API операций (схема, управление)
-WEAVIATE_URL = os.getenv("WEAVIATE_URL")  # Если не задан, будет вычислен из gRPC URL
+WEAVIATE_URL = os.getenv("WEAVIATE_URL")
 # gRPC URL для векторных операций (поиск, вставка) - основной протокол
-WEAVIATE_GRPC_URL = os.getenv("WEAVIATE_GRPC_URL")
+WEAVIATE_GRPC_URL = os.getenv("WEAVIATE_GRPC_URL")  # Если не задан, будет вычислен из HTTP URL
 WEAVIATE_API_KEY = os.getenv("WEAVIATE_API_KEY", None)  # Optional, если используется аутентификация
 # Имя класса в Weaviate для хранения параграфов (можно переопределить через env для тестирования/миграций)
 WEAVIATE_CLASS_NAME = os.getenv("WEAVIATE_CLASS_NAME", "Paragraph")
+
+# Оптимизация HNSW индекса
+WEAVIATE_HNSW_EF_CONSTRUCTION = int(os.getenv("WEAVIATE_HNSW_EF_CONSTRUCTION", "256"))
+WEAVIATE_HNSW_MAX_CONNECTIONS = int(os.getenv("WEAVIATE_HNSW_MAX_CONNECTIONS", "32"))
+WEAVIATE_HNSW_EF = int(os.getenv("WEAVIATE_HNSW_EF", "-1"))  # -1 для динамического
+
+# Оптимизация batch операций
+WEAVIATE_BATCH_SIZE = int(os.getenv("WEAVIATE_BATCH_SIZE", "500"))
+
+# Настройки памяти и производительности Weaviate
+WEAVIATE_MEMORY_WARNING_PERCENTAGE = os.getenv("WEAVIATE_MEMORY_WARNING_PERCENTAGE", "80")
+WEAVIATE_MEMORY_READONLY_PERCENTAGE = os.getenv("WEAVIATE_MEMORY_READONLY_PERCENTAGE", "90")
+WEAVIATE_DISK_WARNING_PERCENTAGE = os.getenv("WEAVIATE_DISK_WARNING_PERCENTAGE", "85")
+WEAVIATE_DISK_READONLY_PERCENTAGE = os.getenv("WEAVIATE_DISK_READONLY_PERCENTAGE", "95")
+
+# Отключение lazy loading для высокой производительности
+WEAVIATE_DISABLE_LAZY_LOAD_SHARDS = os.getenv("WEAVIATE_DISABLE_LAZY_LOAD_SHARDS", "true").lower() in [
+    "true",
+    "1",
+    "yes",
+]
+
+# Настройки встроенной AutoSchema Weaviate для симбиосети
+WEAVIATE_AUTOSCHEMA_DEFAULT_NUMBER = os.getenv("WEAVIATE_AUTOSCHEMA_DEFAULT_NUMBER", "number")
+WEAVIATE_AUTOSCHEMA_DEFAULT_DATE = os.getenv("WEAVIATE_AUTOSCHEMA_DEFAULT_DATE", "date")
+
+# Встроенная AutoSchema Weaviate (адаптивная схема для симбиосети)
+WEAVIATE_USE_BUILTIN_AUTOSCHEMA = os.getenv("WEAVIATE_USE_BUILTIN_AUTOSCHEMA", "true").lower() in ["true", "1", "yes"]

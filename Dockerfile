@@ -86,15 +86,19 @@ RUN apt-get update && apt-get install -y git || echo "git already installed"
 # Set cache directories for build stage
 ENV NPM_CONFIG_CACHE=/app/.cache/npm \
     npm_config_cache=/app/.cache/npm \
-    npm_config_registry=https://registry.npmmirror.com
+    npm_config_registry=https://registry.npmmirror.com \
+    PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright
 
-# Create cache directory if not mounted
-RUN mkdir -p /app/.cache/npm || true
+# Create cache directories if not mounted
+RUN mkdir -p /app/.cache/npm /app/.cache/ms-playwright || true
 
 # Copy package files and install all dependencies (including dev)
 COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund && \
+    echo "Installing Playwright browsers to $PLAYWRIGHT_BROWSERS_PATH" && \
     npx playwright install --with-deps && \
+    echo "Playwright browsers installed:" && \
+    ls -la $PLAYWRIGHT_BROWSERS_PATH/ && \
     npm cache clean --force
 
 # Copy source code
@@ -123,7 +127,16 @@ COPY --from=python-deps /opt/venv /opt/venv
 
 # Copy Node.js runtime deps and built assets
 COPY --from=node-deps /app/node_modules ./node_modules
-COPY --from=build-stage /app/.cache/ms-playwright /app/.cache/ms-playwright
+COPY package.json package-lock.json* ./
+
+# Install Playwright browsers for runtime
+RUN mkdir -p /app/.cache/ms-playwright && \
+    echo "Installing Playwright browsers for runtime..." && \
+    npm install @playwright/test --no-save --no-audit --no-fund && \
+    npx playwright install --with-deps chromium && \
+    echo "Runtime Playwright browsers:" && \
+    ls -la /app/.cache/ms-playwright/ && \
+    npm uninstall @playwright/test
 
 # Create directory for venv symlink (symlink will be created at runtime)
 RUN mkdir -p /opt

@@ -7,6 +7,8 @@
 
 ### Инфраструктура Weaviate
 - `infra/WEAVIATE_DOKKU_SETUP.md` — развертывание Weaviate в Dokku
+- `infra/WEAVIATE_DEPLOY_AUTOSCHEMA.md` — развертывание с AutoSchema для продакшена ⭐
+- `infra/WEAVIATE_AUTOSCHEMA_SETUP.md` — настройка AutoSchema для органической эволюции симбиосети ⭐
 - `infra/WEAVIATE_APP_LINKING.md` — подключение приложений Dokku к Weaviate
 - `infra/WEAVIATE_AUTHENTICATION.md` — настройка аутентификации Weaviate (API Key)
 - `infra/WEAVIATE_LOCAL_SETUP.md` — локальный запуск Weaviate без Docker для разработки и тестирования

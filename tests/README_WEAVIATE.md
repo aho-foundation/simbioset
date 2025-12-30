@@ -1,124 +1,214 @@
-# Интеграционные тесты для Weaviate
+# Weaviate Testing Guide
 
-## Быстрый старт
+## Обзор
 
-### 1. Запуск Weaviate локально
+Тестовая инфраструктура для Weaviate включает unit тесты, интеграционные тесты и E2E тесты для проверки полной функциональности.
 
-**Вариант A: Использовать скрипт (рекомендуется)**
+## Запуск тестов
 
+### Unit тесты (без Weaviate)
 ```bash
-# Запуск
-./scripts/start_weaviate_local.sh
-
-# В другом терминале запустите тесты
-pytest tests/test_weaviate_integration.py
-
-# Остановка
-./scripts/stop_weaviate_local.sh
+pytest tests/test_weaviate_unit.py -v
 ```
 
-**Вариант B: Автоматический запуск в тестах**
-
+### Интеграционные тесты (с Weaviate)
 ```bash
-# Тесты автоматически запустят Weaviate, если доступен бинарник
-pytest tests/test_weaviate_integration.py --weaviate-local
-```
-
-**Вариант C: Использовать существующий Weaviate**
-
-```bash
-# Установите переменные окружения
-export WEAVIATE_URL=http://localhost:8080
-export WEAVIATE_GRPC_URL=localhost:50051
-
-# Запустите тесты
-pytest tests/test_weaviate_integration.py
-```
-
-### 2. Запуск тестов
-
-```bash
-# Все интеграционные тесты
-pytest tests/test_weaviate_integration.py
-
-# Конкретный тест
-pytest tests/test_weaviate_integration.py::TestWeaviateStorageIntegration::test_search_similar
-
-# С подробным выводом
+# С существующим Weaviate
 pytest tests/test_weaviate_integration.py -v
 
-# С покрытием
-pytest tests/test_weaviate_integration.py --cov=api.storage.weaviate_storage
+# С локальным Weaviate (требует установленного бинарника)
+pytest tests/test_weaviate_integration.py --weaviate-local -v
 ```
 
-## Требования
+### E2E тесты (полный цикл)
+```bash
+pytest tests/test_weaviate_e2e.py -v
+```
 
-- Python 3.12+
-- Weaviate (бинарник или Docker)
-- Зависимости из `requirements.txt`
+### Frontend E2E тесты
+```bash
+# Запустить dev server
+npm run dev
 
-## Установка Weaviate
+# В другом терминале
+npx playwright test tests/test_frontend_weaviate.spec.ts
+```
 
-См. подробную инструкцию: [docs/infra/WEAVIATE_LOCAL_SETUP.md](../../docs/infra/WEAVIATE_LOCAL_SETUP.md)
+## Тестовые фикстуры
+
+### `weaviate_server`
+- Автоматически запускает Weaviate если доступен
+- Использует `--weaviate-local` для локального запуска
+- Очищает тестовые данные после тестов
+
+### `weaviate_storage`
+- Создает WeaviateStorage с изолированным тестовым классом
+- Автоматически очищает данные после тестов
 
 ## Структура тестов
 
-- `test_add_documents` - добавление документов
-- `test_add_chat_messages` - добавление чат-сообщений
-- `test_search_similar` - базовый поиск
-- `test_search_similar_paragraphs` - асинхронный поиск
-- `test_search_with_filters` - поиск с фильтрацией
-- `test_get_paragraph_by_id` - получение по ID
-- `test_update_paragraph` - обновление параграфа
-- `test_delete_paragraph` - удаление параграфа
-- `test_get_all_documents` - список документов
-- `test_search_with_ecosystem_filter` - фильтр по экосистеме
-- `test_search_with_organism_ids_filter` - фильтр по organism_ids
+### Unit тесты (`test_weaviate_unit.py`)
+- ✅ Тестирование схемы (автогенерация свойств)
+- ✅ Тестирование типов данных Weaviate
+- ✅ Тестирование преобразования Paragraph ↔ Weaviate объекты
+- ✅ Тестирование генерации эмбеддингов
 
-## Устранение проблем
+### Интеграционные тесты (`test_weaviate_integration.py`)
+- ✅ CRUD операции (create, read, update, delete)
+- ✅ Поиск с фильтрацией (теги, локации, экосистемы)
+- ✅ Batch операции
+- ✅ Асинхронные операции
+- ✅ Обработка ошибок
 
-### Weaviate не запускается
+### E2E тесты (`test_weaviate_e2e.py`)
+- ✅ Полный жизненный цикл контента
+- ✅ Интеграция классификации + NER
+- ✅ Производительность и масштабируемость
+- ✅ Обработка ошибок и восстановление
 
-1. Проверьте, установлен ли бинарник:
-   ```bash
-   which weaviate
-   ```
+### Frontend тесты (`test_frontend_weaviate.spec.ts`)
+- ✅ Рендеринг компонентов
+- ✅ Взаимодействие с UI
+- ✅ API интеграция
+- ✅ Адаптивный дизайн
+- ✅ Обработка ошибок
 
-2. Проверьте, не занят ли порт:
-   ```bash
-   lsof -i :8080
-   ```
+## Переменные окружения для тестов
 
-3. Используйте Docker как альтернативу:
-   ```bash
-   docker run -d -p 8080:8080 semitechnologies/weaviate:latest
-   ```
+```bash
+# Weaviate подключение
+WEAVIATE_URL=http://localhost:8080
+WEAVIATE_GRPC_URL=localhost:50051
 
-### Тесты не проходят
+# Тестовые настройки
+WEAVIATE_AUTO_SCHEMA=true
+ENABLE_AUTOMATIC_DETECTORS=true
 
-1. Убедитесь, что Weaviate запущен:
-   ```bash
-   curl http://localhost:8080/v1/meta
-   ```
-
-2. Проверьте переменные окружения:
-   ```bash
-   echo $WEAVIATE_URL
-   ```
-
-3. Используйте флаг `--weaviate-local`:
-   ```bash
-   pytest tests/test_weaviate_integration.py --weaviate-local
-   ```
-
-## CI/CD
-
-В CI/CD можно использовать Docker:
-
-```yaml
-services:
-  weaviate:
-    image: semitechnologies/weaviate:latest
-    ports:
-      - 8080:8080
+# Playwright
+PLAYWRIGHT_BROWSERS_PATH=/tmp/playwright-browsers
 ```
+
+## Локальный запуск Weaviate
+
+### С бинарником
+```bash
+# Скачать и установить Weaviate бинарник
+curl -L https://github.com/weaviate/weaviate/releases/download/v1.24.0/weaviate-v1.24.0-linux-amd64.tar.gz | tar xz
+sudo mv weaviate /usr/local/bin/
+
+# Запустить тесты
+pytest tests/test_weaviate_integration.py --weaviate-local -v
+```
+
+### С Docker
+```bash
+# Запустить Weaviate в фоне
+docker run -d --name weaviate-test \
+  -p 8080:8080 -p 50051:50051 \
+  weaviate/weaviate:latest
+
+# Запустить тесты
+WEAVIATE_URL=http://localhost:8080 pytest tests/test_weaviate_integration.py -v
+
+# Остановить
+docker stop weaviate-test && docker rm weaviate-test
+```
+
+## Профилирование производительности
+
+```bash
+# Тест производительности
+pytest tests/test_weaviate_e2e.py::TestWeaviateE2E::test_performance_and_scalability -v -s
+
+# С измерением времени
+pytest tests/ --durations=10
+```
+
+## Отладка тестов
+
+### Логирование
+```bash
+# Детальное логирование
+pytest tests/ -v -s --log-cli-level=DEBUG
+
+# Логи в файл
+pytest tests/ --log-file=test.log --log-file-level=DEBUG
+```
+
+### Отладка API
+```bash
+# Проверка доступности Weaviate
+curl http://localhost:8080/v1/meta
+
+# Проверка схемы
+curl http://localhost:8080/v1/schema
+```
+
+## CI/CD интеграция
+
+### GitHub Actions пример
+```yaml
+- name: Run Weaviate tests
+  run: |
+    docker run -d --name weaviate \
+      -p 8080:8080 -p 50051:50051 \
+      weaviate/weaviate:latest
+    sleep 10
+    pytest tests/test_weaviate_integration.py -v
+    docker stop weaviate
+```
+
+## Расширение тестов
+
+### Добавление новых unit тестов
+```python
+def test_new_functionality(self):
+    # Тест новой функциональности
+    pass
+```
+
+### Добавление новых E2E сценариев
+```python
+def test_new_e2e_scenario(self, e2e_storage):
+    # Новый E2E сценарий
+    pass
+```
+
+### Добавление frontend тестов
+```typescript
+test('new frontend feature', async ({ page }) => {
+  // Новый frontend тест
+})
+```
+
+## Метрики покрытия
+
+```bash
+# С покрытием
+pytest tests/ --cov=api --cov-report=html
+
+# Отчет в HTML
+open htmlcov/index.html
+```
+
+## Troubleshooting
+
+### Тесты не запускаются
+- Проверьте переменные окружения
+- Убедитесь, что Weaviate доступен
+- Проверьте зависимости: `pip install -r requirements.txt`
+
+### Ошибки подключения
+- Проверьте `WEAVIATE_URL` и `WEAVIATE_GRPC_URL`
+- Убедитесь, что порты не заняты
+- Проверьте логи Weaviate
+
+### Медленные тесты
+- Уменьшите размер тестовых данных
+- Используйте `--durations` для поиска bottleneck'ов
+- Оптимизируйте batch размеры
+
+### Frontend тесты падают
+- Проверьте, что dev server запущен
+- Убедитесь, что API доступен
+- Проверьте селекторы в тестах

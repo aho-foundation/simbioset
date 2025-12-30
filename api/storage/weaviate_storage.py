@@ -10,6 +10,7 @@ from sentence_transformers import SentenceTransformer
 from datetime import datetime
 import weaviate
 from weaviate.classes.query import Filter, MetadataQuery
+import asyncio
 
 # Импортируем типы из faiss.py для совместимости
 from api.storage.faiss import (
@@ -25,8 +26,11 @@ from api.settings import (
     WEAVIATE_GRPC_URL,
     WEAVIATE_API_KEY,
     WEAVIATE_CLASS_NAME,
+    WEAVIATE_BATCH_SIZE,
+    WEAVIATE_USE_BUILTIN_AUTOSCHEMA,
+    ENABLE_AUTOMATIC_DETECTORS,
 )
-from api.storage.weaviate_schema import create_schema_if_not_exists
+from api.storage.weaviate_schema import create_schema_if_not_exists, update_schema_if_needed
 from api.logger import root_logger
 
 log = root_logger.debug
@@ -58,28 +62,34 @@ class WeaviateStorage:
             auth_config = weaviate.auth.AuthApiKey(api_key=WEAVIATE_API_KEY)
 
         # Парсим HTTP URL для подключения
-        # Если WEAVIATE_URL не задан, вычисляем из gRPC URL
         weaviate_url = WEAVIATE_URL
         if not weaviate_url:
-            # Вычисляем HTTP URL из gRPC URL (предполагаем стандартные порты)
-            grpc_parts = WEAVIATE_GRPC_URL.split(":")
-            grpc_host = grpc_parts[0] if grpc_parts else "localhost"
-            # Для Weaviate стандартный HTTP порт 8080, gRPC 50051
-            weaviate_url = f"http://{grpc_host}:8080"
-            log(f"🔧 WEAVIATE_URL не задан, вычисляем из gRPC: {weaviate_url}")
+            log("❌ WEAVIATE_URL не задан, невозможно подключиться к Weaviate")
+            raise ValueError("WEAVIATE_URL is required for Weaviate connection")
 
         url_parts = weaviate_url.replace("http://", "").replace("https://", "").split(":")
         http_host = url_parts[0] if url_parts else "localhost"
         http_port = int(url_parts[1]) if len(url_parts) > 1 else 8080
         http_secure = weaviate_url.startswith("https://")
 
-        # Парсим gRPC URL отдельно
-        grpc_parts = WEAVIATE_GRPC_URL.split(":")
+        # Парсим gRPC URL или вычисляем из HTTP URL
+        weaviate_grpc_url = WEAVIATE_GRPC_URL
+        if not weaviate_grpc_url:
+            # Вычисляем gRPC URL из HTTP URL (предполагаем стандартные порты)
+            # Для Weaviate стандартный HTTP порт 8080, gRPC 50051
+            grpc_host = http_host
+            grpc_port = 50051 if http_port == 8080 else http_port + 1  # 8080 -> 50051, иначе +1
+            weaviate_grpc_url = f"{grpc_host}:{grpc_port}"
+            log(f"🔧 WEAVIATE_GRPC_URL не задан, вычисляем из HTTP: {weaviate_grpc_url}")
+
+        grpc_parts = weaviate_grpc_url.split(":")
         grpc_host = grpc_parts[0] if grpc_parts else "localhost"
         grpc_port = int(grpc_parts[1]) if len(grpc_parts) > 1 else 50051
         grpc_secure = False  # gRPC обычно не использует SSL во внутренней сети
 
-        log(f"🔗 Подключение к Weaviate - HTTP: {http_host}:{http_port} (secure: {http_secure}), gRPC: {grpc_host}:{grpc_port} (secure: {grpc_secure})")
+        log(
+            f"🔗 Подключение к Weaviate - HTTP: {http_host}:{http_port} (secure: {http_secure}), gRPC: {grpc_host}:{grpc_port} (secure: {grpc_secure}) [grpc вычислен из http: {not WEAVIATE_GRPC_URL}]"
+        )
 
         # Создаем подключение с приоритетом gRPC для векторных операций
         connection_params = weaviate.connect.base.ConnectionParams.from_params(
@@ -109,10 +119,18 @@ class WeaviateStorage:
             meta = self.client.get_meta()
             log(f"✅ Подключено к Weaviate {meta.get('version', 'unknown')} на {weaviate_url}")
 
-            # Создаем схему, если её нет
-            log("📋 Проверяем/создаем схему...")
-            create_schema_if_not_exists(self.client)
-            log("✅ Схема готова")
+            # Схема: встроенная AutoSchema Weaviate или ручное управление
+            if WEAVIATE_USE_BUILTIN_AUTOSCHEMA:
+                log("🤖 Встроенная AutoSchema Weaviate активна - схема будет создаваться автоматически из данных")
+                log("📈 Это идеально для симбиосети: связи и паттерны могут эволюционировать органически")
+            else:
+                log("🔧 Ручное управление схемой - создаем предопределенную схему")
+                create_schema_if_not_exists(self.client)
+                # Проверяем обновления для совместимости
+                if update_schema_if_needed(self.client):
+                    log("🔄 Схема была обновлена")
+                else:
+                    log("✅ Схема актуальна")
         except Exception as e:
             log(f"❌ Ошибка подключения к Weaviate: {e}")
             log(f"🔍 Детали ошибки: {type(e).__name__}: {str(e)}")
@@ -286,38 +304,481 @@ class WeaviateStorage:
 
         return paragraph
 
-    # Делегируем методы классификации из FAISSStorage для переиспользования
     def _extract_text(self, message: Dict[str, Any]) -> str:
-        """Извлекает текст из сообщения для создания эмбеддинга"""
-        from api.storage.faiss import FAISSStorage
+        """
+        Извлекает текст из сообщения для создания эмбеддинга
 
-        # Создаем временный экземпляр для переиспользования метода
-        temp_storage = FAISSStorage()
-        return temp_storage._extract_text(message)
+        Args:
+            message: Словарь с данными сообщения или TelegramMessage
+
+        Returns:
+            Текст сообщения
+        """
+        if hasattr(message, "text"):  # TelegramMessage object
+            text = message.text or ""
+            from_user = getattr(message, "from_user", None)
+            if from_user:
+                username = getattr(from_user, "username", "") or getattr(from_user, "first_name", "")
+            else:
+                username = ""
+        elif isinstance(message, dict):  # Dictionary
+            text = message.get("text", "")
+            from_user = message.get("from", message.get("from_user", {}))
+            if isinstance(from_user, dict):
+                username = from_user.get("username", from_user.get("first_name", ""))
+            else:
+                username = ""
+        else:
+            text = ""
+            username = ""
+
+        return f"{username}: {text}"
 
     def _create_paragraph_from_message(
         self, message: Dict[str, Any], document_id: str, document_type: DocumentType, index: Optional[int] = None
     ) -> Paragraph:
         """Создает параграф из сообщения"""
-        from api.storage.faiss import FAISSStorage
+        if isinstance(message, dict):
+            text = message.get("text", "")
+            author = message.get("from", message.get("from_user", {}))
+            if isinstance(author, dict):
+                author_name = author.get("username", author.get("first_name", ""))
+                author_id = author.get("id")
+            else:
+                author_name = ""
+                author_id = None
 
-        temp_storage = FAISSStorage()
-        return temp_storage._create_paragraph_from_message(message, document_id, document_type, index)
+            timestamp = message.get("date") if isinstance(message.get("date"), datetime) else None
+        else:
+            text = ""
+            author_name = ""
+            author_id = None
+            timestamp = None
+
+        # Создаем параграф
+        paragraph = Paragraph(
+            id=self._create_paragraph_id(text, author_name, timestamp, index),
+            content=text,
+            author=author_name,
+            author_id=author_id,
+            timestamp=timestamp,
+            document_id=document_id,
+            document_type=document_type,
+            paragraph_index=index,
+        )
+
+        # Создаем эмбеддинг
+        paragraph.embedding = self._create_embedding(text)
+
+        return paragraph
 
     def _group_consecutive_messages(self, messages: List[Dict[str, Any]]) -> List[Paragraph]:
         """Группирует последовательные сообщения одного автора в один параграф"""
-        from api.storage.faiss import FAISSStorage
+        if not messages:
+            return []
 
-        temp_storage = FAISSStorage()
-        return temp_storage._group_consecutive_messages(messages)
+        grouped_paragraphs = []
+        current_author = None
+        current_content: list[str] = []
+        current_metadata: dict[str, Any] = {}
+        current_timestamp = None
+
+        for msg in messages:
+            if isinstance(msg, dict):
+                author_id: Optional[int] = None
+                author_name: Optional[str] = None
+
+                from_user = msg.get("from", msg.get("from_user", {}))
+                if isinstance(from_user, dict):
+                    author_id = from_user.get("id")
+                    author_name = from_user.get("username") or from_user.get("first_name")
+
+                # Если это первый сообщение или автор изменился
+                if current_author is None or current_author != author_id:
+                    # Сохраняем предыдущий параграф, если он есть
+                    if current_content:
+                        combined_content = "\n".join(current_content)
+                        paragraph = Paragraph(
+                            id=self._create_paragraph_id(combined_content, current_author),
+                            content=combined_content,
+                            author=current_author,
+                            metadata=current_metadata.copy(),
+                            timestamp=current_timestamp,
+                        )
+                        grouped_paragraphs.append(paragraph)
+
+                    # Начинаем новый параграф
+                    current_author = author_name or f"user_{author_id}" if author_id else "unknown"
+                    current_content = []
+                    current_metadata = {}
+                    current_timestamp = msg.get("date") if isinstance(msg.get("date"), datetime) else None
+
+                current_content.append(msg.get("text", ""))
+
+        # Добавляем последний параграф
+        if current_content:
+            combined_content = "\n".join(current_content)
+            paragraph = Paragraph(
+                id=self._create_paragraph_id(combined_content, current_author),
+                content=combined_content,
+                author=current_author,
+                metadata=current_metadata.copy(),
+                timestamp=current_timestamp,
+            )
+            grouped_paragraphs.append(paragraph)
+
+        for paragraph in grouped_paragraphs:
+            paragraph.embedding = self._create_embedding(paragraph.content)
+
+        return grouped_paragraphs
 
     def _classify_paragraph(self, paragraph: Paragraph, tag_service=None) -> Paragraph:
-        """Классифицирует параграф с использованием модулей классификации"""
-        from api.storage.faiss import FAISSStorage
+        """Классифицирует параграф с использованием модулей классификации.
 
-        temp_storage = FAISSStorage()
-        temp_storage._tag_service = tag_service or self._tag_service
-        return temp_storage._classify_paragraph(paragraph, tag_service=tag_service or self._tag_service)
+        Определяет множественные теги для параграфа, так как он может одновременно
+        описывать уязвимости, риски и решения.
+        """
+        try:
+            # Импортируем классификаторы опционально
+            try:
+                from api.detect.rolestate import classify_message_type
+                from api.detect.factcheck import check_factuality
+                from api.detect.localize import extract_location_and_time
+                from api.detect.organism_detector import detect_organisms
+                from api.detect.ecosystem_scaler import detect_ecosystems
+            except ImportError:
+                log("⚠️ Модули классификации недоступны, пропускаем классификацию")
+                return paragraph
+
+            # Используем гибридную классификацию (Weaviate + LLM) если доступны оба компонента
+            if tag_service and ENABLE_AUTOMATIC_DETECTORS and self._is_weaviate_available():
+                # Гибридная классификация: используем похожие параграфы для контекста
+                hybrid_tags = self._classify_with_hybrid_approach(paragraph, tag_service)
+                if hybrid_tags:
+                    paragraph.tags = hybrid_tags
+                    # Устанавливаем classification enum
+                    self._set_classification_from_tags(paragraph, hybrid_tags)
+                    # Обновляем статистику использования тегов
+                    tag_service.update_tag_usage(hybrid_tags)
+                    # Добавляем примеры
+                    for tag in hybrid_tags:
+                        tag_service.add_example_to_tag(tag, paragraph.content[:200])
+                else:
+                    # Fallback на обычную LLM классификацию
+                    self._classify_with_llm_fallback_sync(paragraph, tag_service)
+            # Используем обычную LLM классификацию если явно включены автоматические детекторы
+            elif tag_service and ENABLE_AUTOMATIC_DETECTORS:
+                import asyncio
+
+                try:
+                    # Создаем новый event loop если его нет
+                    try:
+                        loop = asyncio.get_event_loop()
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+
+                    # Предлагаем теги через LLM
+                    suggested_tags = loop.run_until_complete(
+                        tag_service.suggest_tags_for_paragraph(paragraph.content, paragraph.tags)
+                    )
+                    if suggested_tags:
+                        paragraph.tags = suggested_tags
+                        # Устанавливаем classification enum на основе первого тега
+                        if suggested_tags:
+                            try:
+                                classification_map = {
+                                    "ecosystem_risk": ClassificationType.ECOSYSTEM_RISK,
+                                    "ecosystem_vulnerability": ClassificationType.ECOSYSTEM_VULNERABILITY,
+                                    "suggested_ecosystem_solution": ClassificationType.ECOSYSTEM_SOLUTION,
+                                    "ecosystem_solution": ClassificationType.ECOSYSTEM_SOLUTION,
+                                }
+                                paragraph.classification = classification_map.get(suggested_tags[0])
+                            except (ValueError, KeyError):
+                                log(f"⚠️ Неизвестный тип классификации в тегах: {suggested_tags[0]}")
+                        # Обновляем счетчики использования тегов
+                        tag_service.update_tag_usage(suggested_tags)
+                        # Добавляем примеры использования
+                        for tag in suggested_tags:
+                            tag_service.add_example_to_tag(tag, paragraph.content[:200])
+                except Exception as e:
+                    log(f"⚠️ Ошибка при предложении тегов через LLM: {e}")
+                    # Fallback на старый классификатор
+                    classification_result = classify_message_type(paragraph.content)
+                    if classification_result:
+                        if isinstance(classification_result, str):
+                            paragraph.tags = [classification_result]
+                            # Устанавливаем classification enum на основе строки
+                            try:
+                                classification_map = {
+                                    "ecosystem_risk": ClassificationType.ECOSYSTEM_RISK,
+                                    "ecosystem_vulnerability": ClassificationType.ECOSYSTEM_VULNERABILITY,
+                                    "suggested_ecosystem_solution": ClassificationType.ECOSYSTEM_SOLUTION,
+                                    "ecosystem_solution": ClassificationType.ECOSYSTEM_SOLUTION,
+                                    "neutral": ClassificationType.NEUTRAL,
+                                }
+                                paragraph.classification = classification_map.get(classification_result)
+                            except (ValueError, KeyError):
+                                log(f"⚠️ Неизвестный тип классификации: {classification_result}")
+                        elif isinstance(classification_result, list):
+                            paragraph.tags = classification_result
+                            # Берем первый тег для classification
+                            if classification_result:
+                                try:
+                                    classification_map = {
+                                        "ecosystem_risk": ClassificationType.ECOSYSTEM_RISK,
+                                        "ecosystem_vulnerability": ClassificationType.ECOSYSTEM_VULNERABILITY,
+                                        "suggested_ecosystem_solution": ClassificationType.ECOSYSTEM_SOLUTION,
+                                        "ecosystem_solution": ClassificationType.ECOSYSTEM_SOLUTION,
+                                        "neutral": ClassificationType.NEUTRAL,
+                                    }
+                                    paragraph.classification = classification_map.get(classification_result[0])
+                                except (ValueError, KeyError):
+                                    log(f"⚠️ Неизвестный тип классификации: {classification_result[0]}")
+
+            # Проверка достоверности
+            fact_check_result = check_factuality(paragraph.content)
+            if fact_check_result:
+                paragraph.fact_check_result = FactCheckResult(fact_check_result.get("status", "unknown"))
+                paragraph.fact_check_details = fact_check_result.get("details")
+
+            # Локализация (место и время)
+            location_result = extract_location_and_time(paragraph.content)
+            if location_result:
+                paragraph.location = location_result.get("location")
+                paragraph.time_reference = location_result.get("time_reference")
+
+            # Автоматические детекторы (экосистемы / организмы) при сохранении параграфов
+            # по умолчанию отключены, чтобы не ломать UX быстрого общения.
+            if ENABLE_AUTOMATIC_DETECTORS:
+                # Обнаружение экосистем (используя данные локализации)
+                try:
+                    import asyncio
+
+                    try:
+                        loop = asyncio.get_event_loop()
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+
+                    ecosystems = loop.run_until_complete(
+                        detect_ecosystems(paragraph.content, location_data=location_result)
+                    )
+
+                    if ecosystems:
+                        if not paragraph.metadata:
+                            paragraph.metadata = {}
+                        paragraph.metadata["ecosystems"] = ecosystems
+                        log(f"✅ Обнаружено {len(ecosystems)} экосистем в параграфе")
+                except ImportError:
+                    log("⚠️ Модуль обнаружения экосистем недоступен, пропускаем")
+                except Exception as e:
+                    log(f"⚠️ Ошибка при обнаружении экосистем: {e}")
+
+                # Обнаружение и классификация организмов
+                try:
+                    import asyncio
+
+                    try:
+                        loop = asyncio.get_event_loop()
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+
+                    organisms = loop.run_until_complete(detect_organisms(paragraph.content))
+
+                    if organisms:
+                        # Импортируем классификатор организмов
+                        try:
+                            from api.classify.organism_classifier import classify_organisms_batch
+
+                            classified_organisms = loop.run_until_complete(classify_organisms_batch(organisms))
+                        except ImportError:
+                            # Если классификатор недоступен, используем сырые данные
+                            classified_organisms = organisms
+                            log("⚠️ Классификатор организмов недоступен, используем сырые данные")
+
+                        # Сохраняем организмы в dedicated поле
+                        paragraph.organisms = classified_organisms
+
+                        # Также сохраняем в metadata для обратной совместимости
+                        if not paragraph.metadata:
+                            paragraph.metadata = {}
+                        paragraph.metadata["organisms"] = classified_organisms
+
+                        log(f"✅ Обнаружено и классифицировано {len(classified_organisms)} организмов в параграфе")
+                except ImportError:
+                    log("⚠️ Модули обнаружения организмов недоступны, пропускаем")
+                except Exception as e:
+                    log(f"⚠️ Ошибка при обнаружении организмов: {e}")
+
+        except Exception as e:
+            log(f"⚠️ Ошибка при классификации параграфа: {e}")
+
+        return paragraph
+
+    def _is_weaviate_available(self) -> bool:
+        """Проверяет доступность Weaviate для гибридной классификации"""
+        try:
+            # Проверяем, что у нас есть URL (уже проверено в __init__)
+            return bool(WEAVIATE_URL)
+        except:
+            return False
+
+    def _classify_with_hybrid_approach(self, paragraph: Paragraph, tag_service) -> Optional[List[str]]:
+        """Гибридная классификация: использует Weaviate для поиска похожих параграфов"""
+        try:
+            # Ищем похожие параграфы в Weaviate
+            similar_paragraphs = self._find_similar_classified_paragraphs(paragraph.content, limit=5)
+
+            if not similar_paragraphs:
+                log("🤖 Гибридная классификация: похожих параграфов не найдено, используем LLM")
+                return None
+
+            # Анализируем классификацию похожих параграфов
+            tag_scores: dict[str, int] = {}
+            classification_counts: dict[str, int] = {}
+
+            for similar_para in similar_paragraphs:
+                # Собираем статистику по тегам
+                for tag in similar_para.tags:
+                    tag_scores[tag] = tag_scores.get(tag, 0) + 1
+
+                # Собираем статистику по типам классификации
+                if similar_para.classification:
+                    class_name = similar_para.classification.value
+                    classification_counts[class_name] = classification_counts.get(class_name, 0) + 1
+
+            # Выбираем наиболее вероятные теги (score > 1)
+            candidate_tags = [tag for tag, score in tag_scores.items() if score > 1]
+
+            if candidate_tags:
+                log(f"🤖 Гибридная классификация: найдены кандидаты из похожих параграфов: {candidate_tags}")
+
+                # Используем LLM для финального решения с контекстом похожих параграфов
+                return self._refine_classification_with_llm(
+                    paragraph.content, candidate_tags, similar_paragraphs[:2], tag_service
+                )
+
+            return None
+
+        except Exception as e:
+            log(f"⚠️ Ошибка в гибридной классификации: {e}")
+            return None
+
+    def _find_similar_classified_paragraphs(self, query: str, limit: int = 5) -> List[Paragraph]:
+        """Находит похожие параграфы, которые уже классифицированы"""
+        try:
+            # Ищем во всех документах с фильтром по классифицированным параграфам
+            # Это упрощенная версия - в реальности нужно фильтровать по наличию тегов
+            # Используем asyncio для вызова async метода из sync контекста
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Если event loop уже запущен, используем create_task
+                    # Но это не сработает в sync контексте, поэтому возвращаем пустой список
+                    log("⚠️ Event loop уже запущен, пропускаем поиск похожих параграфов")
+                    return []
+                else:
+                    results = loop.run_until_complete(self.search_similar_paragraphs(query, "all", top_k=limit * 2))
+            except RuntimeError:
+                # Если нет event loop, создаем новый
+                results = asyncio.run(self.search_similar_paragraphs(query, "all", top_k=limit * 2))
+
+            # Фильтруем только классифицированные параграфы
+            classified_results = [para for para in results if para.tags and len(para.tags) > 0][:limit]
+
+            log(f"🤖 Найдено {len(classified_results)} классифицированных похожих параграфов")
+            return classified_results
+
+        except Exception as e:
+            log(f"⚠️ Ошибка при поиске похожих параграфов: {e}")
+            return []
+
+    def _classify_with_llm_fallback_sync(self, paragraph: Paragraph, tag_service):
+        """Fallback на обычную LLM классификацию (синхронная версия)"""
+        import asyncio
+
+        try:
+            # Создаем новый event loop если его нет
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            # Предлагаем теги через LLM
+            suggested_tags = loop.run_until_complete(
+                tag_service.suggest_tags_for_paragraph(paragraph.content, paragraph.tags)
+            )
+            if suggested_tags:
+                paragraph.tags = suggested_tags
+                self._set_classification_from_tags(paragraph, suggested_tags)
+                # Обновляем статистику использования тегов
+                tag_service.update_tag_usage(suggested_tags)
+                # Добавляем примеры
+                for tag in suggested_tags:
+                    tag_service.add_example_to_tag(tag, paragraph.content[:200])
+        except Exception as e:
+            log(f"⚠️ Ошибка при LLM классификации: {e}")
+
+    def _set_classification_from_tags(self, paragraph: Paragraph, tags: List[str]):
+        """Устанавливает classification enum на основе тегов"""
+        if not tags:
+            return
+
+        classification_map = {
+            "ecosystem_risk": ClassificationType.ECOSYSTEM_RISK,
+            "ecosystem_vulnerability": ClassificationType.ECOSYSTEM_VULNERABILITY,
+            "suggested_ecosystem_solution": ClassificationType.ECOSYSTEM_SOLUTION,
+            "ecosystem_solution": ClassificationType.ECOSYSTEM_SOLUTION,
+            "neutral": ClassificationType.NEUTRAL,
+        }
+        paragraph.classification = classification_map.get(tags[0])
+
+    def _refine_classification_with_llm(
+        self, content: str, candidate_tags: List[str], context_paragraphs: List[Paragraph], tag_service
+    ) -> Optional[List[str]]:
+        """Уточняет классификацию с помощью LLM, используя контекст похожих параграфов"""
+        try:
+            # Создаем промпт для уточнения классификации
+            context = "\n".join(
+                [f"Похожий текст: {p.content[:200]}... Теги: {', '.join(p.tags)}" for p in context_paragraphs]
+            )
+
+            prompt = f"""На основе следующих похожих текстов и их классификации,
+определи наиболее подходящие теги для нового текста.
+
+ПОХОЖИЕ ТЕКСТЫ:
+{context}
+
+НОВЫЙ ТЕКСТ:
+{content}
+
+КАНДИДАТЫ ТЕГОВ: {", ".join(candidate_tags)}
+
+Верни только список тегов через запятую, без дополнительных комментариев."""
+
+            # Используем tag_service для вызова LLM
+            import asyncio
+
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            result = loop.run_until_complete(tag_service.call_llm_for_tags(prompt))
+
+            if result and isinstance(result, list):
+                return result
+            elif result and isinstance(result, str):
+                return [tag.strip() for tag in result.split(",") if tag.strip()]
+
+        except Exception as e:
+            log(f"⚠️ Ошибка при уточнении классификации: {e}")
+
+        return candidate_tags  # Возвращаем исходных кандидатов в случае ошибки
 
     def add_documents(
         self,
@@ -404,7 +865,7 @@ class WeaviateStorage:
         # Вставляем батчами
         if objects_to_insert:
             # В v4 используем insert_many для batch операций
-            batch_size = 100
+            batch_size = WEAVIATE_BATCH_SIZE
             for i in range(0, len(objects_to_insert), batch_size):
                 batch = objects_to_insert[i : i + batch_size]
                 result = collection.data.insert_many(batch)
@@ -497,7 +958,7 @@ class WeaviateStorage:
         # Вставляем батчами
         if objects_to_insert:
             # В v4 используем insert_many для batch операций
-            batch_size = 100
+            batch_size = WEAVIATE_BATCH_SIZE
             for i in range(0, len(objects_to_insert), batch_size):
                 batch = objects_to_insert[i : i + batch_size]
                 result = collection.data.insert_many(batch)

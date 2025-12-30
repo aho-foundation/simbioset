@@ -303,6 +303,44 @@ class TagService:
             log(f"⚠️ Ошибка при предложении тегов через LLM: {e}")
             return []
 
+    async def call_llm_for_tags(self, prompt: str) -> Optional[List[str]]:
+        """Вызывает LLM для классификации с произвольным промптом.
+
+        Args:
+            prompt: Произвольный промпт для LLM
+
+        Returns:
+            Список тегов или None при ошибке
+        """
+        try:
+            response = await call_llm_with_retry(
+                llm_context=prompt, origin="hybrid_classification", context_size_hint="normal"
+            )
+
+            # Парсим ответ как JSON или список через запятую
+            response = response.strip()
+
+            # Пробуем распарсить как JSON
+            try:
+                result = json.loads(response)
+                if isinstance(result, list):
+                    return result
+            except json.JSONDecodeError:
+                pass
+
+            # Пробуем распарсить как список через запятую
+            if "," in response:
+                tags = [tag.strip().strip('"').strip("'") for tag in response.split(",")]
+                return [tag for tag in tags if tag]
+
+            # Если ничего не получилось, возвращаем пустой список
+            log(f"⚠️ Не удалось распарсить ответ LLM: {response}")
+            return []
+
+        except Exception as e:
+            log(f"⚠️ Ошибка при вызове LLM для классификации: {e}")
+            return None
+
     async def analyze_and_update_tags(self, sample_size: int = 100) -> Dict[str, Any]:
         """Анализирует параграфы и обновляет список тегов через LLM.
 

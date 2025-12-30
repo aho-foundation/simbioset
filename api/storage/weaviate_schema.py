@@ -1,58 +1,32 @@
-"""Схема Weaviate для класса Paragraph (v4 API)"""
+"""Заглушка для совместимости - теперь используется встроенная AutoSchema Weaviate
 
-import weaviate
-from api.settings import WEAVIATE_CLASS_NAME
-from api.logger import root_logger
+⚠️  ВНИМАНИЕ: Этот файл оставлен только для совместимости импортов.
+Теперь используется встроенная AutoSchema Weaviate, которая автоматически
+создает и адаптирует схему на основе добавляемых данных.
 
-log = root_logger.debug
+Настройки AutoSchema (два уровня):
+
+1. Уровень Weaviate сервера (в переменных окружения Weaviate):
+   - AUTOSCHEMA_ENABLED=true (включить AutoSchema в Weaviate)
+   - AUTOSCHEMA_DEFAULT_NUMBER=number
+   - AUTOSCHEMA_DEFAULT_DATE=date
+
+2. Уровень приложения (в переменных окружения приложения):
+   - WEAVIATE_USE_BUILTIN_AUTOSCHEMA=true (по умолчанию: true)
+   - WEAVIATE_AUTOSCHEMA_DEFAULT_NUMBER=number (опционально)
+   - WEAVIATE_AUTOSCHEMA_DEFAULT_DATE=date (опционально)
+
+См. документацию:
+- docs/infra/WEAVIATE_AUTOSCHEMA_SETUP.md - настройка AutoSchema
+- docs/infra/WEAVIATE_DEPLOY_AUTOSCHEMA.md - развертывание с AutoSchema
+"""
 
 
-def create_schema_if_not_exists(client: weaviate.WeaviateClient) -> None:
-    """Создает схему класса Paragraph в Weaviate, если она еще не существует.
+def update_schema_if_needed(client) -> bool:
+    """Заглушка - схема управляется Weaviate автоматически через AutoSchema"""
+    return False
 
-    Args:
-        client: Клиент Weaviate
-    """
-    try:
-        # Проверяем, существует ли класс (v4 API)
-        if client.collections.exists(WEAVIATE_CLASS_NAME):
-            log(f"ℹ️  Класс {WEAVIATE_CLASS_NAME} уже существует в Weaviate")
-            return
 
-        # Создаем класс (v4 API)
-        from weaviate.classes.config import Configure, Property, DataType
-
-        # Metadata не включаем в схему Weaviate - он используется только для временных данных
-        # (ecosystems, organisms) при обработке, которые затем сохраняются в отдельные поля.
-        # В SQLite metadata остается для обратной совместимости.
-        properties = [
-            Property(name="content", data_type=DataType.TEXT),
-            Property(name="document_id", data_type=DataType.TEXT),
-            Property(name="node_id", data_type=DataType.TEXT),
-            Property(name="document_type", data_type=DataType.TEXT),
-            Property(name="session_id", data_type=DataType.TEXT),
-            Property(name="organism_ids", data_type=DataType.TEXT_ARRAY),
-            Property(name="ecosystem_id", data_type=DataType.TEXT),
-            Property(name="location", data_type=DataType.TEXT),
-            Property(name="tags", data_type=DataType.TEXT_ARRAY),
-            Property(name="timestamp", data_type=DataType.DATE),
-            Property(name="author", data_type=DataType.TEXT),
-            Property(name="author_id", data_type=DataType.INT),
-            Property(name="paragraph_index", data_type=DataType.INT),
-        ]
-
-        client.collections.create(
-            name=WEAVIATE_CLASS_NAME,
-            description="Параграф документа для векторного поиска",
-            vectorizer_config=Configure.Vectorizer.none(),
-            properties=properties,
-        )
-        log(f"✅ Схема класса {WEAVIATE_CLASS_NAME} создана в Weaviate")
-
-    except Exception as e:
-        error_msg = str(e).lower()
-        if "already exists" in error_msg or "name already present" in error_msg:
-            log(f"ℹ️  Класс {WEAVIATE_CLASS_NAME} уже существует")
-        else:
-            log(f"❌ Ошибка создания схемы {WEAVIATE_CLASS_NAME}: {e}")
-            raise
+def create_schema_if_not_exists(client) -> None:
+    """Заглушка - схема создается Weaviate автоматически при добавлении данных"""
+    pass

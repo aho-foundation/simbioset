@@ -74,6 +74,7 @@ class Paragraph:
     location: Optional[str] = None
     time_reference: Optional[str] = None
     ecosystem_id: Optional[str] = None  # Ссылка на основную экосистему параграфа (если относится)
+    organisms: List[Dict[str, Any]] = field(default_factory=list)  # Извлеченные организмы через NER
     # Порядковый номер параграфа внутри документа (для сохранения стабильного порядка)
     paragraph_index: Optional[int] = None
 
@@ -308,13 +309,30 @@ class FAISSStorage:
                 from api.detect.rolestate import classify_message_type
                 from api.detect.factcheck import check_factuality
                 from api.detect.localize import extract_location_and_time
+                from api.detect.organism_detector import detect_organisms
+                from api.detect.ecosystem_scaler import detect_ecosystems
             except ImportError:
                 log("⚠️ Модули классификации недоступны, пропускаем классификацию")
                 return paragraph
 
-            # Используем LLM для тегов только если явно включены автоматические детекторы.
-            # В обычном UX чата достаточно лёгкой классификации через classify_message_type.
-            if tag_service and ENABLE_AUTOMATIC_DETECTORS:
+            # Используем гибридную классификацию (Weaviate + LLM) если доступны оба компонента
+            if tag_service and ENABLE_AUTOMATIC_DETECTORS and self._is_weaviate_available():
+                # Гибридная классификация: используем похожие параграфы для контекста
+                hybrid_tags = self._classify_with_hybrid_approach(paragraph, tag_service)
+                if hybrid_tags:
+                    paragraph.tags = hybrid_tags
+                    # Устанавливаем classification enum
+                    self._set_classification_from_tags(paragraph, hybrid_tags)
+                    # Обновляем статистику использования тегов
+                    tag_service.update_tag_usage(hybrid_tags)
+                    # Добавляем примеры
+                    for tag in hybrid_tags:
+                        tag_service.add_example_to_tag(tag, paragraph.content[:200])
+                else:
+                    # Fallback на обычную LLM классификацию
+                    self._classify_with_llm_fallback_sync(paragraph, tag_service)
+            # Используем обычную LLM классификацию если явно включены автоматические детекторы
+            elif tag_service and ENABLE_AUTOMATIC_DETECTORS:
                 import asyncio
 
                 try:
@@ -475,6 +493,10 @@ class FAISSStorage:
                     if organisms:
                         classified_organisms = loop.run_until_complete(classify_organisms_batch(organisms))
 
+                        # Сохраняем организмы в dedicated поле
+                        paragraph.organisms = classified_organisms
+
+                        # Также сохраняем в metadata для обратной совместимости
                         if not paragraph.metadata:
                             paragraph.metadata = {}
                         paragraph.metadata["organisms"] = classified_organisms
@@ -923,3 +945,147 @@ class FAISSStorage:
                 updated_count += 1
 
         return updated_count
+
+    def _is_weaviate_available(self) -> bool:
+        """Проверяет доступность Weaviate для гибридной классификации"""
+        try:
+            # Проверяем, что у нас есть доступ к Weaviate через глобальный storage
+            # Это упрощенная проверка - в реальности нужно проверить подключение
+            from api.settings import WEAVIATE_URL
+
+            return bool(WEAVIATE_URL)
+        except:
+            return False
+
+    def _classify_with_hybrid_approach(self, paragraph: Paragraph, tag_service) -> Optional[List[str]]:
+        """Гибридная классификация: использует Weaviate для поиска похожих параграфов"""
+        try:
+            # Ищем похожие параграфы в Weaviate
+            similar_paragraphs = self._find_similar_classified_paragraphs(paragraph.content, limit=5)
+
+            if not similar_paragraphs:
+                log("🤖 Гибридная классификация: похожих параграфов не найдено, используем LLM")
+                return None
+
+            # Анализируем классификацию похожих параграфов
+            tag_scores: dict[str, int] = {}
+            classification_counts: dict[str, int] = {}
+
+            for similar_para in similar_paragraphs:
+                # Собираем статистику по тегам
+                for tag in similar_para.tags:
+                    tag_scores[tag] = tag_scores.get(tag, 0) + 1
+
+                # Собираем статистику по типам классификации
+                if similar_para.classification:
+                    class_name = similar_para.classification.value
+                    classification_counts[class_name] = classification_counts.get(class_name, 0) + 1
+
+            # Выбираем наиболее вероятные теги (score > 1)
+            candidate_tags = [tag for tag, score in tag_scores.items() if score > 1]
+
+            if candidate_tags:
+                log(f"🤖 Гибридная классификация: найдены кандидаты из похожих параграфов: {candidate_tags}")
+
+                # Используем LLM для финального решения с контекстом похожих параграфов
+                return self._refine_classification_with_llm(
+                    paragraph.content, candidate_tags, similar_paragraphs[:2], tag_service
+                )
+
+            return None
+
+        except Exception as e:
+            log(f"⚠️ Ошибка в гибридной классификации: {e}")
+            return None
+
+    def _find_similar_classified_paragraphs(self, query: str, limit: int = 5) -> List[Paragraph]:
+        """Находит похожие параграфы, которые уже классифицированы"""
+        # В тестах Weaviate может быть недоступен, возвращаем пустой результат
+        # В продакшене здесь будет интеграция с реальным WeaviateStorage
+        log("🤖 Гибридная классификация: поиск в Weaviate недоступен в текущей реализации")
+        return []
+
+    def _classify_with_llm_fallback_sync(self, paragraph: Paragraph, tag_service):
+        """Fallback на обычную LLM классификацию (синхронная версия)"""
+        import asyncio
+
+        try:
+            # Создаем новый event loop если его нет
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            # Предлагаем теги через LLM
+            suggested_tags = loop.run_until_complete(
+                tag_service.suggest_tags_for_paragraph(paragraph.content, paragraph.tags)
+            )
+            if suggested_tags:
+                paragraph.tags = suggested_tags
+                self._set_classification_from_tags(paragraph, suggested_tags)
+                # Обновляем статистику использования тегов
+                tag_service.update_tag_usage(suggested_tags)
+                # Добавляем примеры
+                for tag in suggested_tags:
+                    tag_service.add_example_to_tag(tag, paragraph.content[:200])
+        except Exception as e:
+            log(f"⚠️ Ошибка при LLM классификации: {e}")
+
+    def _set_classification_from_tags(self, paragraph: Paragraph, tags: List[str]):
+        """Устанавливает classification enum на основе тегов"""
+        if not tags:
+            return
+
+        classification_map = {
+            "ecosystem_risk": ClassificationType.ECOSYSTEM_RISK,
+            "ecosystem_vulnerability": ClassificationType.ECOSYSTEM_VULNERABILITY,
+            "suggested_ecosystem_solution": ClassificationType.ECOSYSTEM_SOLUTION,
+            "ecosystem_solution": ClassificationType.ECOSYSTEM_SOLUTION,
+            "neutral": ClassificationType.NEUTRAL,
+        }
+        paragraph.classification = classification_map.get(tags[0])
+
+    def _refine_classification_with_llm(
+        self, content: str, candidate_tags: List[str], context_paragraphs: List[Paragraph], tag_service
+    ) -> Optional[List[str]]:
+        """Уточняет классификацию с помощью LLM, используя контекст похожих параграфов"""
+        try:
+            # Создаем промпт для уточнения классификации
+            context = "\n".join(
+                [f"Похожий текст: {p.content[:200]}... Теги: {', '.join(p.tags)}" for p in context_paragraphs]
+            )
+
+            prompt = f"""На основе следующих похожих текстов и их классификации,
+определи наиболее подходящие теги для нового текста.
+
+ПОХОЖИЕ ТЕКСТЫ:
+{context}
+
+НОВЫЙ ТЕКСТ:
+{content}
+
+КАНДИДАТЫ ТЕГОВ: {", ".join(candidate_tags)}
+
+Верни только список тегов через запятую, без дополнительных комментариев."""
+
+            # Используем tag_service для вызова LLM
+            import asyncio
+
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            result = loop.run_until_complete(tag_service.call_llm_for_tags(prompt))
+
+            if result and isinstance(result, list):
+                return result
+            elif result and isinstance(result, str):
+                return [tag.strip() for tag in result.split(",") if tag.strip()]
+
+        except Exception as e:
+            log(f"⚠️ Ошибка при уточнении классификации: {e}")
+
+        return candidate_tags  # Возвращаем исходных кандидатов в случае ошибки

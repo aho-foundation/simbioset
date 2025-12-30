@@ -118,14 +118,14 @@ async def lifespan(app: FastAPI):
         # Выбираем хранилище: Weaviate если доступен и не отключен, иначе FAISS
         storage: Union[FAISSStorage, WeaviateStorage]
 
-        # Если WEAVIATE_GRPC_URL не задан - используем FAISS
-        if not WEAVIATE_GRPC_URL:
-            log("📦 WEAVIATE_GRPC_URL не задан, используем FAISSStorage")
+        # Если WEAVIATE_URL не задан - используем FAISS
+        if not WEAVIATE_URL:
+            log("📦 WEAVIATE_URL не задан, используем FAISSStorage")
             storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
             log("✅ FAISSStorage инициализирован")
         # Пробуем Weaviate напрямую (без предварительной проверки)
         else:
-            log(f"🎯 WEAVIATE_GRPC_URL задан ({WEAVIATE_GRPC_URL}), инициализируем WeaviateStorage...")
+            log(f"🎯 WEAVIATE_URL задан ({WEAVIATE_URL}), инициализируем WeaviateStorage...")
             try:
                 # Добавляем таймаут на инициализацию WeaviateStorage
                 storage = await asyncio.wait_for(
