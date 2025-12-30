@@ -12,7 +12,8 @@ export const ParagraphSchema = z.object({
   author_id: z.number().optional(),
   location: z.string().optional(),
   ecosystem_id: z.string().optional(),
-  embedding: z.array(z.number()).optional()
+  embedding: z.array(z.number()).optional(),
+  timestamp: z.union([z.string(), z.date()]).optional() // ISO string или Date
 })
 
 export const SearchResultSchema = z.object({

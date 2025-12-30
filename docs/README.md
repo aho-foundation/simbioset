@@ -9,6 +9,10 @@
 - `infra/WEAVIATE_DOKKU_SETUP.md` — развертывание Weaviate в Dokku
 - `infra/WEAVIATE_DEPLOY_AUTOSCHEMA.md` — развертывание с AutoSchema для продакшена ⭐
 - `infra/WEAVIATE_AUTOSCHEMA_SETUP.md` — настройка AutoSchema для органической эволюции симбиосети ⭐
+- `infra/WEAVIATE_AUTOSCHEMA_ENTITY_CREATION.md` — детальный анализ создания сущностей и свойств ⭐
+- `infra/WEAVIATE_ADVANCED_FEATURES.md` — продвинутые возможности Weaviate: анализ и рекомендации ⭐
+- `infra/WEAVIATE_ADVANCED_FEATURES_USAGE.md` — практическое руководство по использованию продвинутых возможностей ⭐
+- `infra/WEAVIATE_FRONTEND_INTEGRATION.md` — интеграция продвинутых возможностей Weaviate на фронтенде ⭐
 - `infra/WEAVIATE_APP_LINKING.md` — подключение приложений Dokku к Weaviate
 - `infra/WEAVIATE_AUTHENTICATION.md` — настройка аутентификации Weaviate (API Key)
 - `infra/WEAVIATE_LOCAL_SETUP.md` — локальный запуск Weaviate без Docker для разработки и тестирования
@@ -27,5 +31,9 @@
 - `agent/conversation_tree_framework.md` — фреймворк дерева диалога.
 - `agent/agree_agent.md` — агентная система AgREE для дополнения графа знаний новыми сущностями.
 - `agent/rag_and_memory_best_practices.md` — лучшие практики для RAG и долгосрочной памяти с двумя графами.
+
+### Функциональность
+- `features/WEAVIATE_KNOWLEDGE_ACCUMULATION.md` — как система накапливает семантическую базу знаний во время чата и делает разговор интереснее ⭐
+- `features/SEARCH_USER_FEATURES.md` — пользовательские функции поиска с zero-config подходом ⭐
 
 

@@ -250,6 +250,13 @@ Error: property "field_name" already exists with different type
 - Для высокой нагрузки рассмотреть отключение после стабилизации схемы
 
 ## Связанная документация
+
+### Внутренняя документация
+- [WEAVIATE_AUTOSCHEMA_ENTITY_CREATION.md](WEAVIATE_AUTOSCHEMA_ENTITY_CREATION.md) - Детальный анализ процесса создания сущностей и свойств
+- [WEAVIATE_DEPLOY_AUTOSCHEMA.md](WEAVIATE_DEPLOY_AUTOSCHEMA.md) - Развертывание с AutoSchema в Dokku
+- [WEAVIATE_SCHEMA_WORKFLOW.md](WEAVIATE_SCHEMA_WORKFLOW.md) - Workflow работы со схемой
+
+### Официальная документация Weaviate
 - [Weaviate AutoSchema](https://docs.weaviate.io/weaviate/config-refs/collections#auto-schema)
 - [Schema Management](https://docs.weaviate.io/weaviate/config-refs/schema)
 - [Collection Definition](https://docs.weaviate.io/developers/weaviate/config-refs/collections)

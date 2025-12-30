@@ -160,6 +160,28 @@ const Header: Component = () => {
               </Show>
             </A>
           </li>
+          <li class={styles.navItem}>
+            <A
+              href="/classification"
+              class={styles.navLink}
+              activeClass={styles.active}
+              title="Классификация"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M7 7h10M7 12h10M7 17h10M3 3v18h18V3z" />
+              </svg>
+              <Show when={isExpanded()}>
+                <span class={styles.navText}>{t('Классификация')}</span>
+              </Show>
+            </A>
+          </li>
         </ul>
       </nav>
     </aside>

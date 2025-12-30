@@ -121,3 +121,10 @@ WEAVIATE_AUTOSCHEMA_DEFAULT_DATE = os.getenv("WEAVIATE_AUTOSCHEMA_DEFAULT_DATE",
 
 # Встроенная AutoSchema Weaviate (адаптивная схема для симбиосети)
 WEAVIATE_USE_BUILTIN_AUTOSCHEMA = os.getenv("WEAVIATE_USE_BUILTIN_AUTOSCHEMA", "true").lower() in ["true", "1", "yes"]
+
+# Настройки продвинутых возможностей Weaviate
+WEAVIATE_USE_HYBRID_SEARCH = os.getenv("WEAVIATE_USE_HYBRID_SEARCH", "true").lower() in ["true", "1", "yes"]
+WEAVIATE_HYBRID_ALPHA = float(os.getenv("WEAVIATE_HYBRID_ALPHA", "0.5"))  # 0 = только BM25, 1 = только векторный
+WEAVIATE_USE_RERANKING = os.getenv("WEAVIATE_USE_RERANKING", "false").lower() in ["true", "1", "yes"]
+WEAVIATE_RERANK_LIMIT = int(os.getenv("WEAVIATE_RERANK_LIMIT", "50"))  # Количество кандидатов для reranking
+WEAVIATE_EMBEDDING_CACHE_SIZE = int(os.getenv("WEAVIATE_EMBEDDING_CACHE_SIZE", "1000"))  # Размер кеша эмбеддингов

@@ -9,8 +9,9 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from datetime import datetime
 import weaviate
-from weaviate.classes.query import Filter, MetadataQuery
+from weaviate.classes.query import Filter, MetadataQuery, HybridFusion
 import asyncio
+from functools import lru_cache
 
 # Импортируем типы из faiss.py для совместимости
 from api.storage.faiss import (
@@ -29,6 +30,11 @@ from api.settings import (
     WEAVIATE_BATCH_SIZE,
     WEAVIATE_USE_BUILTIN_AUTOSCHEMA,
     ENABLE_AUTOMATIC_DETECTORS,
+    WEAVIATE_USE_HYBRID_SEARCH,
+    WEAVIATE_HYBRID_ALPHA,
+    WEAVIATE_USE_RERANKING,
+    WEAVIATE_RERANK_LIMIT,
+    WEAVIATE_EMBEDDING_CACHE_SIZE,
 )
 from api.storage.weaviate_schema import create_schema_if_not_exists, update_schema_if_needed
 from api.logger import root_logger
@@ -141,6 +147,11 @@ class WeaviateStorage:
         # Связанный сервис тегов задается снаружи
         self._tag_service: Optional[Any] = None
 
+        # Кеш для эмбеддингов (опционально, если включен)
+        self._embedding_cache_enabled = WEAVIATE_EMBEDDING_CACHE_SIZE > 0
+        if self._embedding_cache_enabled:
+            log(f"💾 Кеширование эмбеддингов включено (размер: {WEAVIATE_EMBEDDING_CACHE_SIZE})")
+
     def _create_paragraph_id(
         self,
         content: str,
@@ -150,11 +161,13 @@ class WeaviateStorage:
     ) -> str:
         """Создает уникальный ID для параграфа"""
         unique_id = str(uuid.uuid4())
+        if index is not None:
+            return f"para_{unique_id}_idx_{index}"
         return f"para_{unique_id}"
 
     def _create_embedding(self, text: str) -> np.ndarray:
         """
-        Создает эмбеддинг для текста
+        Создает эмбеддинг для текста с опциональным кешированием
 
         Args:
             text: Текст для создания эмбеддинга
@@ -162,6 +175,10 @@ class WeaviateStorage:
         Returns:
             Нормализованный вектор эмбеддинга
         """
+        # Используем кешированную версию если включено
+        if self._embedding_cache_enabled:
+            return self._create_embedding_cached(text)
+
         embedding = self.model.encode(text, convert_to_numpy=True)
 
         # Нормализуем для косинусного сходства
@@ -170,6 +187,38 @@ class WeaviateStorage:
             embedding = embedding / norm
 
         return cast(np.ndarray, embedding.astype("float32"))
+
+    def _create_embedding_cached(self, text: str) -> np.ndarray:
+        """
+        Кешированная версия создания эмбеддинга
+        Использует простой словарь для кеша (lru_cache не работает с numpy arrays)
+        """
+        if not hasattr(self, "_embedding_cache"):
+            self._embedding_cache: Dict[str, np.ndarray] = {}
+            self._embedding_cache_max_size = WEAVIATE_EMBEDDING_CACHE_SIZE
+
+        # Проверяем кеш
+        if text in self._embedding_cache:
+            return self._embedding_cache[text]
+
+        # Создаем эмбеддинг
+        embedding = self.model.encode(text, convert_to_numpy=True)
+
+        # Нормализуем для косинусного сходства
+        norm = np.linalg.norm(embedding)
+        if norm > 0:
+            embedding = embedding / norm
+
+        embedding = cast(np.ndarray, embedding.astype("float32"))
+
+        # Сохраняем в кеш (с ограничением размера)
+        if len(self._embedding_cache) >= self._embedding_cache_max_size:
+            # Удаляем самый старый элемент (FIFO)
+            oldest_key = next(iter(self._embedding_cache))
+            del self._embedding_cache[oldest_key]
+
+        self._embedding_cache[text] = embedding
+        return embedding
 
     def _paragraph_to_weaviate_object(self, paragraph: Paragraph) -> Dict[str, Any]:
         """Конвертирует Paragraph в объект для Weaviate
@@ -186,6 +235,7 @@ class WeaviateStorage:
             "node_id": paragraph.node_id or "",
             "document_type": paragraph.document_type.value if paragraph.document_type else "chat",
             "organism_ids": organism_ids,
+            "organisms": paragraph.organisms or [],
             "ecosystem_id": paragraph.ecosystem_id or "",
             "location": paragraph.location or "",
             "tags": paragraph.tags or [],
@@ -967,37 +1017,37 @@ class WeaviateStorage:
         log(f"✅ Добавлено {added_count} параграфов в Weaviate для чата {chat_id}")
         return added_count
 
-    def search_similar(
+    def _build_filters(
         self,
-        query: str,
-        document_id: str,
-        top_k: int = 10,
+        document_id: Optional[str] = None,
         classification_filter: Optional[ClassificationType] = None,
         fact_check_filter: Optional[FactCheckResult] = None,
         location_filter: Optional[str] = None,
         ecosystem_id_filter: Optional[str] = None,
         organism_ids_filter: Optional[List[str]] = None,
-    ) -> List[Tuple[Paragraph, float]]:
+        tags_filter: Optional[List[str]] = None,
+        exclude_tags: Optional[List[str]] = None,
+        timestamp_from: Optional[int] = None,
+        timestamp_to: Optional[int] = None,
+    ) -> Optional[Any]:  # type: ignore[return-value]
         """
-        Ищет наиболее похожие параграфы в Weaviate с фильтрацией по метаданным (v4 API).
+        Строит фильтр Weaviate v4 с поддержкой расширенных операций (OR, NOT, диапазоны).
 
         Args:
-            query: Поисковый запрос.
-            document_id: ID документа для поиска.
-            top_k: Количество результатов.
-            classification_filter: Фильтр по типу классификации.
-            fact_check_filter: Фильтр по результату проверки достоверности.
-            location_filter: Фильтр по локации.
-            ecosystem_id_filter: Фильтр по ID экосистемы.
-            organism_ids_filter: Фильтр по списку ID организмов.
+            document_id: Фильтр по ID документа
+            classification_filter: Фильтр по типу классификации
+            fact_check_filter: Фильтр по результату проверки достоверности
+            location_filter: Фильтр по локации
+            ecosystem_id_filter: Фильтр по ID экосистемы
+            organism_ids_filter: Фильтр по списку ID организмов
+            tags_filter: Фильтр по тегам (OR логика - любой из тегов)
+            exclude_tags: Исключить параграфы с этими тегами (NOT логика)
+            timestamp_from: Фильтр по минимальному timestamp
+            timestamp_to: Фильтр по максимальному timestamp
 
         Returns:
-            Список кортежей (параграф, оценка схожести).
+            Объединенный фильтр или None
         """
-        query_embedding = self._create_embedding(query).tolist()
-        collection = self.client.collections.get(WEAVIATE_CLASS_NAME)
-
-        # Строим фильтр Weaviate v4
         filters = []
 
         # Фильтр по document_id
@@ -1008,7 +1058,7 @@ class WeaviateStorage:
         if classification_filter:
             filters.append(Filter.by_property("tags").contains_any([classification_filter.value]))
 
-        # Фильтр по fact_check_result (если есть в схеме)
+        # Фильтр по fact_check_result
         if fact_check_filter:
             filters.append(Filter.by_property("fact_check_result").equal(fact_check_filter.value))
 
@@ -1024,18 +1074,130 @@ class WeaviateStorage:
         if organism_ids_filter:
             filters.append(Filter.by_property("organism_ids").contains_any(organism_ids_filter))
 
+        # Фильтр по тегам (OR логика - любой из тегов)
+        if tags_filter:
+            filters.append(Filter.by_property("tags").contains_any(tags_filter))
+
+        # Исключение тегов (NOT логика)
+        # В Weaviate v4 используем contains_none для исключения тегов
+        if exclude_tags:
+            filters.append(Filter.by_property("tags").contains_none(exclude_tags))
+
+        # Фильтр по timestamp (диапазон)
+        if timestamp_from is not None or timestamp_to is not None:
+            timestamp_filters = []
+            if timestamp_from is not None:
+                timestamp_filters.append(Filter.by_property("timestamp").greater_or_equal(timestamp_from))
+            if timestamp_to is not None:
+                timestamp_filters.append(Filter.by_property("timestamp").less_or_equal(timestamp_to))
+            if timestamp_filters:
+                filters.append(Filter.all_of(timestamp_filters))
+
         # Объединяем фильтры через AND
-        combined_filter = Filter.all_of(filters) if len(filters) > 1 else (filters[0] if filters else None)
+        # Приводим к Any для совместимости с типами Weaviate
+        if len(filters) > 1:
+            return cast(Any, Filter.all_of(filters))
+        elif len(filters) == 1:
+            return cast(Any, filters[0])
+        else:
+            return None
+
+    def search_similar(
+        self,
+        query: str,
+        document_id: str,
+        top_k: int = 10,
+        classification_filter: Optional[ClassificationType] = None,
+        fact_check_filter: Optional[FactCheckResult] = None,
+        location_filter: Optional[str] = None,
+        ecosystem_id_filter: Optional[str] = None,
+        organism_ids_filter: Optional[List[str]] = None,
+        tags_filter: Optional[List[str]] = None,
+        exclude_tags: Optional[List[str]] = None,
+        timestamp_from: Optional[int] = None,
+        timestamp_to: Optional[int] = None,
+        use_hybrid: Optional[bool] = None,
+        hybrid_alpha: Optional[float] = None,
+    ) -> List[Tuple[Paragraph, float]]:
+        """
+        Ищет наиболее похожие параграфы в Weaviate с фильтрацией по метаданным (v4 API).
+        Поддерживает Hybrid Search (векторный + BM25) для улучшения точности.
+
+        Args:
+            query: Поисковый запрос.
+            document_id: ID документа для поиска.
+            top_k: Количество результатов.
+            classification_filter: Фильтр по типу классификации.
+            fact_check_filter: Фильтр по результату проверки достоверности.
+            location_filter: Фильтр по локации.
+            ecosystem_id_filter: Фильтр по ID экосистемы.
+            organism_ids_filter: Фильтр по списку ID организмов.
+            use_hybrid: Использовать Hybrid Search (по умолчанию из WEAVIATE_USE_HYBRID_SEARCH).
+            hybrid_alpha: Баланс между BM25 и векторным поиском (0-1, по умолчанию из WEAVIATE_HYBRID_ALPHA).
+
+        Returns:
+            Список кортежей (параграф, оценка схожести).
+        """
+        collection = self.client.collections.get(WEAVIATE_CLASS_NAME)
+
+        # Определяем использовать ли Hybrid Search
+        use_hybrid_search = use_hybrid if use_hybrid is not None else WEAVIATE_USE_HYBRID_SEARCH
+        alpha = hybrid_alpha if hybrid_alpha is not None else WEAVIATE_HYBRID_ALPHA
+
+        # Строим фильтр с поддержкой расширенных операций
+        combined_filter = self._build_filters(
+            document_id=document_id,
+            classification_filter=classification_filter,
+            fact_check_filter=fact_check_filter,
+            location_filter=location_filter,
+            ecosystem_id_filter=ecosystem_id_filter,
+            organism_ids_filter=organism_ids_filter,
+            tags_filter=tags_filter,
+            exclude_tags=exclude_tags,
+            timestamp_from=timestamp_from,
+            timestamp_to=timestamp_to,
+        )
 
         try:
-            # Выполняем поиск в Weaviate v4
-            response = collection.query.near_vector(
-                near_vector=query_embedding,
-                limit=top_k,
-                filters=combined_filter,
-                return_metadata=MetadataQuery(distance=True),
-                include_vector=True,
-            )
+            # Выполняем поиск: Hybrid Search или обычный векторный
+            if use_hybrid_search:
+                try:
+                    # Hybrid Search: комбинация векторного поиска и BM25
+                    query_embedding = self._create_embedding(query).tolist()
+                    response = collection.query.hybrid(
+                        query=query,  # Текст для BM25
+                        vector=query_embedding,  # Вектор для векторного поиска
+                        alpha=alpha,  # Баланс: 0 = только BM25, 1 = только векторный
+                        fusion_type=HybridFusion.RELATIVE_SCORE,  # Относительное объединение скоров
+                        limit=top_k,
+                        filters=cast(Any, combined_filter),  # type: ignore[arg-type]
+                        return_metadata=MetadataQuery(score=True, distance=True),
+                        include_vector=True,
+                    )
+                    log(f"🔍 Hybrid Search (alpha={alpha}): BM25 + векторный поиск")
+                except Exception as hybrid_error:
+                    # Fallback на обычный векторный поиск если Hybrid Search не поддерживается
+                    log(f"⚠️ Hybrid Search не поддерживается, используем векторный поиск: {hybrid_error}")
+                    query_embedding = self._create_embedding(query).tolist()
+                    response = collection.query.near_vector(
+                        near_vector=query_embedding,
+                        limit=top_k,
+                        filters=cast(Any, combined_filter),  # type: ignore[arg-type]
+                        return_metadata=MetadataQuery(distance=True),
+                        include_vector=True,
+                    )
+                    log("🔍 Векторный поиск (fallback)")
+            else:
+                # Обычный векторный поиск
+                query_embedding = self._create_embedding(query).tolist()
+                response = collection.query.near_vector(
+                    near_vector=query_embedding,
+                    limit=top_k,
+                    filters=cast(Any, combined_filter),  # type: ignore[arg-type]
+                    return_metadata=MetadataQuery(distance=True),
+                    include_vector=True,
+                )
+                log("🔍 Векторный поиск")
 
             results = []
             for obj in response.objects:
@@ -1058,32 +1220,103 @@ class WeaviateStorage:
 
                 paragraph = self._weaviate_object_to_paragraph(obj, vector=vector)
 
-                # Weaviate возвращает distance (расстояние), конвертируем в similarity (схожесть)
-                distance = 1.0  # Default
-                if obj.metadata and hasattr(obj.metadata, "distance"):
-                    try:
-                        distance_val = obj.metadata.distance
-                        if isinstance(distance_val, (int, float)):
-                            distance = float(distance_val)
-                        elif isinstance(distance_val, dict):
-                            # Если distance приходит как dict, используем default
-                            log(f"⚠️ distance is dict: {distance_val}")
-                            distance = 1.0
-                        elif distance_val is not None:
-                            distance = float(distance_val)
-                        else:
-                            distance = 1.0
-                    except (ValueError, TypeError) as e:
-                        log(f"⚠️ Cannot convert distance {obj.metadata.distance} to float: {e}")
-                        distance = 1.0
+                # Получаем score (для Hybrid Search) или distance (для векторного поиска)
+                similarity = 0.0
+                if obj.metadata:
+                    # Для Hybrid Search используем score
+                    if hasattr(obj.metadata, "score") and obj.metadata.score is not None:
+                        try:
+                            score_val = obj.metadata.score
+                            if isinstance(score_val, (int, float)):
+                                similarity = float(score_val)
+                            elif isinstance(score_val, dict):
+                                # Если score приходит как dict, используем default
+                                similarity = 0.5
+                            else:
+                                similarity = float(score_val) if score_val is not None else 0.0
+                        except (ValueError, TypeError) as e:
+                            log(f"⚠️ Cannot convert score {obj.metadata.score} to float: {e}")
+                            similarity = 0.0
+                    # Для векторного поиска используем distance
+                    elif hasattr(obj.metadata, "distance") and obj.metadata.distance is not None:
+                        try:
+                            distance_val = obj.metadata.distance
+                            if isinstance(distance_val, (int, float)):
+                                distance = float(distance_val)
+                            elif isinstance(distance_val, dict):
+                                log(f"⚠️ distance is dict: {distance_val}")
+                                distance = 1.0
+                            else:
+                                distance = float(distance_val) if distance_val is not None else 1.0
+                            similarity = 1.0 - distance  # Для косинусного расстояния
+                        except (ValueError, TypeError) as e:
+                            log(f"⚠️ Cannot convert distance {obj.metadata.distance} to float: {e}")
+                            similarity = 0.0
 
-                similarity = 1.0 - distance  # Для косинусного расстояния
                 results.append((paragraph, float(similarity)))
 
             return results
         except Exception as e:
             log(f"❌ Ошибка поиска в Weaviate: {e}")
             return []
+
+    def search_with_reranking(
+        self, query: str, document_id: str, top_k: int = 10, rerank_limit: Optional[int] = None, **filters
+    ) -> List[Tuple[Paragraph, float]]:
+        """
+        Поиск с переранжированием через Cross-Encoder для улучшения точности.
+
+        Двухэтапный процесс:
+        1. Быстрый первичный поиск (получаем больше кандидатов)
+        2. Переранжирование через Cross-Encoder (точная оценка релевантности)
+
+        Args:
+            query: Поисковый запрос
+            document_id: ID документа для поиска
+            top_k: Финальное количество результатов
+            rerank_limit: Количество кандидатов для reranking (по умолчанию из WEAVIATE_RERANK_LIMIT)
+            **filters: Дополнительные фильтры для поиска
+
+        Returns:
+            Список кортежей (параграф, оценка схожести) отсортированных по релевантности
+        """
+        rerank_limit = rerank_limit or WEAVIATE_RERANK_LIMIT
+
+        # 1. Первичный поиск (быстрый, много кандидатов)
+        candidates = self.search_similar(query=query, document_id=document_id, top_k=rerank_limit, **filters)
+
+        if not candidates or len(candidates) <= top_k:
+            # Если кандидатов мало, возвращаем как есть
+            return candidates[:top_k]
+
+        # 2. Переранжирование через Cross-Encoder
+        try:
+            from sentence_transformers import CrossEncoder
+
+            # Используем легковесную модель для reranking
+            # Можно заменить на более мощную модель для лучшей точности
+            cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+            # Подготовка пар (запрос, документ)
+            pairs = [(query, para.content) for para, _ in candidates]
+
+            # Получаем новые скоры через Cross-Encoder
+            rerank_scores = cross_encoder.predict(pairs)
+
+            # Сортируем по новым скорам
+            reranked = sorted(zip(candidates, rerank_scores), key=lambda x: x[1], reverse=True)
+
+            # Возвращаем топ-k результатов
+            results = [(para, float(score)) for (para, _), score in reranked[:top_k]]
+            log(f"🎯 Reranking: {len(candidates)} кандидатов → {len(results)} результатов")
+            return results
+
+        except ImportError:
+            log("⚠️ Cross-Encoder не установлен, пропускаем reranking. Установите: pip install sentence-transformers")
+            return candidates[:top_k]
+        except Exception as e:
+            log(f"⚠️ Ошибка при reranking: {e}, возвращаем результаты без reranking")
+            return candidates[:top_k]
 
     async def search_similar_paragraphs(
         self,
@@ -1095,22 +1328,53 @@ class WeaviateStorage:
         location_filter: Optional[str] = None,
         ecosystem_id_filter: Optional[str] = None,
         organism_ids_filter: Optional[List[str]] = None,
+        use_reranking: Optional[bool] = None,
     ) -> List[Paragraph]:
         """
         Ищет наиболее похожие параграфы, возвращая только параграфы без оценок.
         Если прямых совпадений мало или нет, использует LLM для перефразирования.
+        Поддерживает Cross-Encoder Reranking для улучшения точности.
+
+        Args:
+            query: Поисковый запрос
+            document_id: ID документа для поиска
+            top_k: Количество результатов
+            classification_filter: Фильтр по типу классификации
+            fact_check_filter: Фильтр по результату проверки достоверности
+            location_filter: Фильтр по локации
+            ecosystem_id_filter: Фильтр по ID экосистемы
+            organism_ids_filter: Фильтр по списку ID организмов
+            use_reranking: Использовать Cross-Encoder Reranking (по умолчанию из WEAVIATE_USE_RERANKING)
+
+        Returns:
+            Список параграфов отсортированных по релевантности
         """
-        # 1. Прямой поиск
-        similar_pairs = self.search_similar(
-            query,
-            document_id,
-            top_k,
-            classification_filter,
-            fact_check_filter,
-            location_filter,
-            ecosystem_id_filter,
-            organism_ids_filter,
-        )
+        use_rerank = use_reranking if use_reranking is not None else WEAVIATE_USE_RERANKING
+
+        # Используем reranking если включено
+        if use_rerank:
+            similar_pairs = self.search_with_reranking(
+                query=query,
+                document_id=document_id,
+                top_k=top_k,
+                classification_filter=classification_filter,
+                fact_check_filter=fact_check_filter,
+                location_filter=location_filter,
+                ecosystem_id_filter=ecosystem_id_filter,
+                organism_ids_filter=organism_ids_filter,
+            )
+        else:
+            # Обычный поиск
+            similar_pairs = self.search_similar(
+                query,
+                document_id,
+                top_k,
+                classification_filter,
+                fact_check_filter,
+                location_filter,
+                ecosystem_id_filter,
+                organism_ids_filter,
+            )
 
         # Если результатов достаточно, возвращаем их
         if len(similar_pairs) >= 3:
