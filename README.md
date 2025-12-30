@@ -69,13 +69,51 @@ npx playwright test
 
 ### Dokku
 ```bash
-# Развернуть Weaviate
+# Развернуть Weaviate (см. docs/infra/WEAVIATE_DOKKU_SETUP.md)
 dokku apps:create weaviate
 ./scripts/setup_dokku_cache.sh weaviate
-# ... см. docs/infra/WEAVIATE_DOKKU_SETUP.md
+
+# Подключить приложение к Weaviate
+dokku config:set simbioset-website \
+  WEAVIATE_URL=http://weaviate:8080 \
+  WEAVIATE_GRPC_URL=weaviate:50051
 
 # Развернуть приложение
 git push dokku main
+```
+
+### Troubleshooting Weaviate
+
+Приложение автоматически проверяет доступность Weaviate при старте и логирует статус:
+
+```
+🔍 Проверяем доступность Weaviate на http://weaviate:8080
+✅ Weaviate доступен: версия 1.35.1, модули: ['text2vec-transformers']
+🎯 Weaviate доступен, инициализируем WeaviateStorage...
+✅ WeaviateStorage инициализирован успешно
+```
+
+Если Weaviate недоступен, приложение переключается на FAISS:
+
+```
+⚠️ Weaviate недоступен (DNS resolution failed), используем FAISSStorage
+✅ FAISSStorage инициализирован (fallback)
+```
+
+Для диагностики проблем:
+
+```bash
+# Проверить логи приложения
+dokku logs simbioset-website --tail 50 | grep -i weaviate
+
+# Проверить статус Weaviate
+dokku ps:report weaviate
+
+# Проверить API Weaviate
+curl http://localhost:8080/v1/meta
+
+# Проверить переменные окружения
+dokku config:show simbioset-website | grep WEAVIATE
 ```
 
 ## 📊 Мониторинг

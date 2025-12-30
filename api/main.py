@@ -31,8 +31,66 @@ from api.storage.nodes_repository import DatabaseNodeRepository
 from api.kb.service import KBService
 from api.settings import MODELS_CACHE_DIR, DATABASE_URL, DATABASE_PATH, WEAVIATE_URL
 from api.logger import root_logger
+import asyncio
+try:
+    import httpx
+    HAS_HTTPX = True
+except ImportError:
+    import requests
+    HAS_HTTPX = False
 
 log = root_logger.debug
+
+
+async def check_weaviate_availability(url: str) -> tuple[bool, str]:
+    """Проверяет доступность Weaviate через HTTP API"""
+    try:
+        log(f"🔍 Проверка доступности Weaviate: {url}")
+
+        if HAS_HTTPX:
+            # Используем httpx для native async
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(f"{url}/v1/meta")
+        else:
+            # Fallback на requests с executor
+            import requests
+            response = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: requests.get(f"{url}/v1/meta", timeout=5)
+            )
+
+        if response.status_code == 200:
+            if hasattr(response, 'json'):
+                # httpx response
+                data = response.json()
+            else:
+                # requests response
+                data = response.json()
+
+            version = data.get('version', 'unknown')
+            modules = data.get('modules', {})
+            log(f"✅ Weaviate доступен: версия {version}, модули: {list(modules.keys())}")
+            return True, f"Версия {version}"
+        else:
+            log(f"❌ Weaviate вернул код {response.status_code}")
+            return False, f"HTTP {response.status_code}"
+
+    except Exception as e:
+        error_msg = str(e).lower()
+        if "timeout" in error_msg or "read timed out" in error_msg:
+            log(f"⏰ Таймаут при подключении к {url}")
+            return False, "Timeout"
+        elif "name or service not known" in error_msg or "nodename nor servname" in error_msg:
+            log(f"🌐 DNS разрешение не удалось для {url}")
+            return False, "DNS resolution failed"
+        elif "connection refused" in error_msg:
+            log(f"🚫 Подключение отклонено для {url}")
+            return False, "Connection refused"
+        elif "connection failed" in error_msg or "weaviate connection error" in error_msg:
+            log(f"🔌 Ошибка подключения к {url}: {str(e)[:50]}")
+            return False, f"Connection error: {str(e)[:50]}"
+        else:
+            log(f"💥 Неожиданная ошибка при проверке {url}: {e}")
+            return False, f"Unexpected error: {str(e)[:50]}"
 
 
 @asynccontextmanager
@@ -51,14 +109,28 @@ async def lifespan(app: FastAPI):
 
     # Если WEAVIATE_URL не задан - используем FAISS
     if not WEAVIATE_URL:
-        log("🔄 WEAVIATE_URL не задан, инициализация FAISSStorage...")
+        log("📦 WEAVIATE_URL не задан, используем FAISSStorage")
         storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
         log("✅ FAISSStorage инициализирован")
-    # Если fallback отключен - пробуем Weaviate без fallback
+    # Пробуем Weaviate с предварительной проверкой и fallback на FAISS
     else:
-        log("🔄 Fallback отключен, попытка инициализации WeaviateStorage...")
-        storage = WeaviateStorage(cache_folder=MODELS_CACHE_DIR)
-        log("✅ WeaviateStorage инициализирован")
+        log(f"🔍 Проверяем доступность Weaviate на {WEAVIATE_URL}")
+        weaviate_available, status_msg = await check_weaviate_availability(WEAVIATE_URL)
+
+        if weaviate_available:
+            log(f"🎯 Weaviate доступен ({status_msg}), инициализируем WeaviateStorage...")
+            try:
+                storage = WeaviateStorage(cache_folder=MODELS_CACHE_DIR)
+                log("✅ WeaviateStorage инициализирован успешно")
+            except Exception as e:
+                log(f"💥 Ошибка инициализации WeaviateStorage: {e}")
+                log("🔄 Переключаемся на FAISSStorage...")
+                storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
+                log("✅ FAISSStorage инициализирован (fallback после ошибки)")
+        else:
+            log(f"⚠️ Weaviate недоступен ({status_msg}), используем FAISSStorage")
+            storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
+            log("✅ FAISSStorage инициализирован (fallback)")
 
     # Create database repository and KB service
     node_repo = DatabaseNodeRepository(db_manager)
