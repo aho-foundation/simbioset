@@ -98,7 +98,7 @@ const InterviewPage = () => {
   const [isResizing, setIsResizing] = createSignal(false)
   const [isPanelOpen, setIsPanelOpen] = createSignal(false)
   const [treeRefreshKey, setTreeRefreshKey] = createSignal(0)
-  const [editingMessageId, setEditingMessageId] = createSignal<number | null>(null)
+  const [editingMessageId, setEditingMessageId] = createSignal<number | string | null>(null)
   const [editingContent, setEditingContent] = createSignal('')
   const { sessionId, setSessionId } = useSession()
   const kb = useKnowledgeBase()
@@ -574,7 +574,7 @@ const InterviewPage = () => {
   }
 
   // Функция для начала редактирования
-  const startEditing = (messageId: number, currentContent: string) => {
+  const startEditing = (messageId: number | string, currentContent: string) => {
     setEditingMessageId(messageId)
     setEditingContent(currentContent)
   }
@@ -683,7 +683,7 @@ const InterviewPage = () => {
                 class={`${styles.conceptBubble} ${message.role === 'user' ? styles.userConcept : styles.aiConcept}`}
               >
                 <Show
-                  when={editingMessageId() === message.id}
+                  when={editingMessageId() !== null && String(editingMessageId()) === String(message.id)}
                   fallback={
                     <>
                       <div class={styles.conceptContent}>
@@ -693,46 +693,17 @@ const InterviewPage = () => {
                         content={message.content}
                         onCopy={() => copyToClipboard(message.content)}
                         onFactCheck={() => void runFactCheck(message.content)}
-                        onEdit={() => startEditing(message.id as number, message.content)}
+                        onEdit={() => startEditing(message.id, message.content)}
                         isFactCheckLoading={detectorLoading()}
+                        sources={message.role === 'assistant' ? message.sources : undefined}
                       />
-                      {/* Отображение источников для AI сообщений */}
-                      <Show
-                        when={
-                          message.role === 'assistant' &&
-                          message.sources &&
-                          message.sources.filter(
-                            (s) => s.title && s.type && !s.type.toLowerCase().includes('неизвестный')
-                          ).length > 0
-                        }
-                      >
-                        <div class={styles.sourcesSection}>
-                          <h5 class={styles.sourcesTitle}>Источники:</h5>
-                          <ul class={styles.sourcesList}>
-                            <For
-                              each={message.sources.filter(
-                                (s) => s.title && s.type && !s.type.toLowerCase().includes('неизвестный')
-                              )}
-                            >
-                              {(source: MessageSource) => (
-                                <li class={styles.sourceItem}>
-                                  <span class={styles.sourceTitle}>{source.title}</span>
-                                  <Show when={source.type}>
-                                    <span class={styles.sourceType}>({source.type})</span>
-                                  </Show>
-                                </li>
-                              )}
-                            </For>
-                          </ul>
-                        </div>
-                      </Show>
                     </>
                   }
                 >
                   <MessageEditor
                     content={editingContent()}
                     onContentChange={setEditingContent}
-                    onSave={() => void saveEditedMessage(message.id as number)}
+                    onSave={() => void saveEditedMessage(Number(message.id))}
                     onCancel={cancelEditing}
                   />
                 </Show>
