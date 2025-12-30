@@ -103,10 +103,10 @@ const InterviewPage = () => {
   const { sessionId, setSessionId } = useSession()
   const kb = useKnowledgeBase()
 
-  // Проверка, достаточно ли контента для отображения аналитической панели (больше 2 сообщений)
+  // Проверка, достаточно ли контента для отображения аналитической панели (2 или больше сообщений)
   const canShowAnalyticsPanel = () => {
     const tree = conversationTree()
-    return tree?.stats && tree.stats.totalNodes > 2
+    return tree?.stats && tree.stats.totalNodes >= 2
   }
 
   let inputAreaRef: HTMLDivElement | undefined
@@ -828,7 +828,7 @@ const InterviewPage = () => {
               class={styles.menuBtn}
               title={
                 !canShowAnalyticsPanel()
-                  ? 'Нужно больше 2 сообщений для аналитики'
+                  ? 'Нужно минимум 2 сообщения для аналитики'
                   : isPanelOpen()
                     ? 'Закрыть аналитическую панель'
                     : 'Открыть аналитическую панель'

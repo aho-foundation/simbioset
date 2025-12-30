@@ -330,3 +330,51 @@
   background: #fef2f2;
   color: #991b1b;
 }
+
+.tagCloud {
+  margin-bottom: 1.5rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #fef7ed 0%, #fed7aa 100%);
+  border-radius: 1rem;
+  border: 1px solid #fdba74;
+}
+
+.tagCloudContainer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem 1rem;
+  min-height: 120px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.tagCloudItem {
+  display: inline-block;
+  color: #92400e;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(146, 64, 14, 0.2);
+  transition: all 0.2s ease;
+  cursor: default;
+  white-space: nowrap;
+  line-height: 1.2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.tagCloudItem:hover {
+  background: rgba(255, 255, 255, 0.9);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(146, 64, 14, 0.2);
+}
+
+.tagCloudStats {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #a16207;
+  font-style: italic;
+  border-top: 1px solid rgba(146, 64, 14, 0.1);
+  padding-top: 0.5rem;
+}

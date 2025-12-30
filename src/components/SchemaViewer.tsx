@@ -1,6 +1,7 @@
-import { Component, createResource, For, Show } from 'solid-js'
+import { Component, createResource, For, Show, createMemo } from 'solid-js'
 import styles from './SchemaViewer.module.css'
 import Card from './ui/Card'
+import { getTags } from '../lib/api/tags'
 
 interface SchemaProperty {
   name: string
@@ -25,6 +26,15 @@ const SchemaViewer: Component = () => {
       throw new Error(`Failed to fetch schema: ${response.statusText}`)
     }
     return response.json()
+  })
+
+  const [tags] = createResource(async () => {
+    try {
+      return await getTags(true) // Только активные теги
+    } catch (error) {
+      console.warn('Failed to load tags for cloud:', error)
+      return []
+    }
   })
 
   // Группируем свойства по типам
@@ -56,6 +66,35 @@ const SchemaViewer: Component = () => {
     }
     return map[type] || type
   }
+
+  // Подготовка данных для облака тегов
+  const tagCloudData = createMemo(() => {
+    const allTags = tags()
+    if (!allTags || allTags.length === 0) return []
+
+    // Сортируем по usage_count и берем топ 20
+    const topTags = allTags
+      .sort((a, b) => b.usage_count - a.usage_count)
+      .slice(0, 20)
+
+    if (topTags.length === 0) return []
+
+    // Находим min/max для нормализации размеров
+    const maxCount = topTags[0].usage_count
+    const minCount = topTags[topTags.length - 1].usage_count
+
+    return topTags.map(tag => {
+      // Рассчитываем размер шрифта (от 0.8em до 2.5em)
+      const fontSize = minCount === maxCount
+        ? 1.5 // Если все теги имеют одинаковый count
+        : 0.8 + ((tag.usage_count - minCount) / (maxCount - minCount)) * 1.7
+
+      return {
+        ...tag,
+        fontSize: Math.max(0.8, Math.min(2.5, fontSize))
+      }
+    })
+  })
 
   return (
     <div class={styles.schemaViewer}>
@@ -153,6 +192,32 @@ const SchemaViewer: Component = () => {
                   </Show>
                 </div>
               </div>
+
+              {/* Облако тегов */}
+              <Show when={tagCloudData().length > 0}>
+                <div class={styles.tagCloud}>
+                  <h3 class={styles.sectionTitle}>🌟 Популярные теги</h3>
+                  <div class={styles.tagCloudContainer}>
+                    <For each={tagCloudData()}>
+                      {(tag) => (
+                        <span
+                          class={styles.tagCloudItem}
+                          style={{
+                            'font-size': `${tag.fontSize}em`,
+                            'font-weight': tag.fontSize > 1.5 ? '700' : tag.fontSize > 1.2 ? '600' : '400'
+                          }}
+                          title={`${tag.name}: использовано ${tag.usage_count} раз`}
+                        >
+                          {tag.name}
+                        </span>
+                      )}
+                    </For>
+                  </div>
+                  <div class={styles.tagCloudStats}>
+                    Показано топ {tagCloudData().length} из {tags()?.length || 0} активных тегов
+                  </div>
+                </div>
+              </Show>
 
               {/* Сообщение для FAISS */}
               <Show when={schemaInfo().storage_type === 'faiss'}>
