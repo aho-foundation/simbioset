@@ -97,6 +97,7 @@ const InterviewPage = () => {
   const [inputHeight, setInputHeight] = createSignal(48)
   const [isResizing, setIsResizing] = createSignal(false)
   const [isPanelOpen, setIsPanelOpen] = createSignal(false)
+  const [showKnowledgeIndicator, setShowKnowledgeIndicator] = createSignal(true)
   const [treeRefreshKey, setTreeRefreshKey] = createSignal(0)
   const [editingMessageId, setEditingMessageId] = createSignal<number | string | null>(null)
   const [editingContent, setEditingContent] = createSignal('')
@@ -676,6 +677,70 @@ const InterviewPage = () => {
   return (
     <div class={styles.interviewContainer}>
       <div class={styles.chatMain}>
+        {/* Индикатор накопления знаний */}
+        <Show when={showKnowledgeIndicator()}>
+          <div class={styles.knowledgeIndicator}>
+            <div class={styles.indicatorIcon}>🧠</div>
+            <div class={styles.indicatorContent}>
+              <div class={styles.indicatorTitle}>Накопление знаний об экосистеме</div>
+              <div class={styles.indicatorDescription}>
+                Каждый ваш вопрос и ответ AI обогащают базу знаний о взаимосвязях в природе и симбиозе
+              </div>
+              <div class={styles.indicatorStats}>
+                <span class={styles.statItem}>💬 {messages().length} сообщений</span>
+                <span class={styles.statItem}>
+                  🌳 {conversationTree()?.stats?.totalNodes || 0} узлов знаний
+                </span>
+                <Show when={messages().length > 0}>
+                  <div class={styles.progressIndicator}>
+                    <div class={styles.progressBar}>
+                      <div
+                        class={styles.progressFill}
+                        style={{
+                          width: `${Math.min(100, (messages().length / 10) * 100)}%`
+                        }}
+                      />
+                    </div>
+                    <span class={styles.progressText}>
+                      {messages().length < 3
+                        ? 'Начало накопления знаний'
+                        : messages().length < 7
+                          ? 'База знаний растет'
+                          : 'Обширная база знаний'}
+                    </span>
+                  </div>
+                </Show>
+              </div>
+            </div>
+            {/* Кнопка для скрытия индикатора */}
+            <button
+              class={styles.indicatorClose}
+              onClick={() => setShowKnowledgeIndicator(false)}
+              title="Скрыть индикатор"
+            >
+              ×
+            </button>
+          </div>
+        </Show>
+
+        {/* Начальное приветственное сообщение */}
+        <Show when={messages().length === 0}>
+          <div class={styles.welcomeMessage}>
+            <div class={styles.welcomeIcon}>🌱</div>
+            <div class={styles.welcomeContent}>
+              <h3 class={styles.welcomeTitle}>Исследуем экосистемы вместе!</h3>
+              <p class={styles.welcomeText}>
+                Задавайте вопросы о симбиозе, организмах, экосистемах. Каждый разговор обогащает нашу базу
+                знаний о взаимосвязях в природе.
+              </p>
+              <div class={styles.welcomeTips}>
+                <span class={styles.tip}>💡 Попробуйте: "Что такое симбиоз?"</span>
+                <span class={styles.tip}>🔍 Или: "Расскажи про микоризу"</span>
+              </div>
+            </div>
+          </div>
+        </Show>
+
         <div class={styles.chatMessages}>
           <For each={messages()}>
             {(message) => (

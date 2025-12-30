@@ -115,31 +115,32 @@ async def lifespan(app: FastAPI):
         db_manager = create_database_manager(database_url=DATABASE_URL, db_path=DATABASE_PATH or "data/storage.db")
         db_manager.connect()
 
-        # Выбираем хранилище: Weaviate если доступен и не отключен, иначе FAISS
+        # Выбираем хранилище: FAISS как основной, Weaviate как опциональное улучшение
         storage: Union[FAISSStorage, WeaviateStorage]
 
-        # Если WEAVIATE_URL не задан - используем FAISS
-        if not WEAVIATE_URL:
-            log("📦 WEAVIATE_URL не задан, используем FAISSStorage")
-            storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
-            log("✅ FAISSStorage инициализирован")
-        # Пробуем Weaviate напрямую (без предварительной проверки)
-        else:
-            log(f"🎯 WEAVIATE_URL задан ({WEAVIATE_URL}), инициализируем WeaviateStorage...")
+        # Всегда начинаем с FAISS как надежного основного хранилища
+        log("📦 Инициализируем FAISSStorage (основное хранилище)")
+        storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
+        log("✅ FAISSStorage инициализирован успешно")
+
+        # Пробуем Weaviate как опциональное улучшение (если URL задан)
+        if WEAVIATE_URL:
+            log(f"🚀 Пробуем подключить Weaviate как улучшение ({WEAVIATE_URL})...")
             try:
-                # Добавляем таймаут на инициализацию WeaviateStorage
-                storage = await asyncio.wait_for(
+                # Пробуем инициализировать WeaviateStorage
+                weaviate_storage = await asyncio.wait_for(
                     asyncio.get_event_loop().run_in_executor(
                         None, lambda: WeaviateStorage(cache_folder=MODELS_CACHE_DIR)
                     ),
-                    timeout=30.0,
+                    timeout=15.0,  # Уменьшаем таймаут для опционального подключения
                 )
-                log("✅ WeaviateStorage инициализирован успешно")
+                storage = weaviate_storage
+                log("🎉 WeaviateStorage подключен успешно - используем векторную базу данных!")
             except Exception as e:
-                log(f"💥 Ошибка инициализации WeaviateStorage: {e}")
-                log("🔄 Переключаемся на FAISSStorage...")
-                storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
-                log("✅ FAISSStorage инициализирован (fallback после ошибки)")
+                log(f"⚠️ Weaviate недоступен ({type(e).__name__}), продолжаем с FAISS: {str(e)[:100]}...")
+                log("✅ FAISSStorage остается основным хранилищем")
+        else:
+            log("ℹ️ Weaviate URL не задан, работаем только с FAISS")
 
         # Create database repository and KB service
         node_repo = DatabaseNodeRepository(db_manager)
