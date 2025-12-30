@@ -82,8 +82,18 @@ dokku config:set simbioset-website \
 git push dokku main
 ```
 
-### Troubleshooting Weaviate
+### Troubleshooting
 
+#### Health Checks
+```bash
+# Проверить здоровье приложения
+curl https://simbioset.ru/health
+
+# Проверить логи приложения
+dokku logs simbioset-website --tail 50
+```
+
+#### Weaviate Issues
 Приложение автоматически проверяет доступность Weaviate при старте и логирует статус:
 
 ```
@@ -100,27 +110,39 @@ git push dokku main
 ✅ FAISSStorage инициализирован (fallback)
 ```
 
-Для диагностики проблем:
+**Принудительное отключение Weaviate:**
+```bash
+dokku config:set simbioset-website FORCE_FAISS=true
+dokku ps:restart simbioset-website
+```
+
+#### Диагностика проблем:
 
 ```bash
-# Проверить логи приложения
-dokku logs simbioset-website --tail 50 | grep -i weaviate
+# Быстрая диагностика
+./scripts/diagnose.sh simbioset-website
 
-# Проверить статус Weaviate
+# Или вручную:
+# Проверить статус приложений
+dokku ps:report simbioset-website
 dokku ps:report weaviate
+
+# Проверить переменные окружения
+dokku config:show simbioset-website | grep -E "(WEAVIATE|FORCE_FAISS)"
+
+# Проверить логи Weaviate
+dokku logs weaviate --tail 50
 
 # Проверить API Weaviate
 curl http://localhost:8080/v1/meta
-
-# Проверить переменные окружения
-dokku config:show simbioset-website | grep WEAVIATE
 ```
 
 ## 📊 Мониторинг
 
-- Health checks встроены в Dockerfile
+- **Health check endpoint**: `/health` - проверка готовности приложения
+- **Docker health checks**: встроены в Dockerfile для автоматического перезапуска
 - Логи через `dokku logs <app>`
-- Метрики через `/metrics` endpoint
+- Метрики через `/metrics` endpoint (если настроено)
 
 ## 🔧 Разработка
 
