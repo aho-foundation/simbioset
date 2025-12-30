@@ -1,11 +1,9 @@
 # syntax=docker/dockerfile:1.4
-
-# Use Python with Node.js pre-installed to avoid network issues
 FROM ghcr.io/astral-sh/uv:debian AS base
 
 # Install Node.js and setup uv venv
 RUN apt-get update && apt-get install -y curl \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs \
     && uv venv /opt/venv
 
