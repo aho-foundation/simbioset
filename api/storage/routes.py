@@ -125,7 +125,7 @@ async def simple_search(
             tags_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
         # Use search_similar_paragraphs for Weaviate (returns paragraphs) or search_similar for FAISS
-        if hasattr(storage, 'search_similar_paragraphs'):
+        if hasattr(storage, "search_similar_paragraphs"):
             # Weaviate path - returns paragraphs directly
             paragraphs = await storage.search_similar_paragraphs(
                 query=q,
@@ -158,10 +158,7 @@ async def simple_search(
                     filtered_results.append(result)
             results = filtered_results[:limit]
 
-        return {
-            "results": results,
-            "total": len(results)
-        }
+        return {"results": results, "total": len(results)}
 
     except Exception as e:
         raise HTTPException(
@@ -396,7 +393,9 @@ async def get_paragraph(document_id: str, paragraph_id: str, request: Request):
             "content": paragraph.content,
             "document_id": paragraph.document_id,
             "node_id": paragraph.node_id,
-            "document_type": paragraph.document_type.value if hasattr(paragraph.document_type, 'value') else paragraph.document_type,
+            "document_type": paragraph.document_type.value
+            if hasattr(paragraph.document_type, "value")
+            else paragraph.document_type,
             "tags": paragraph.tags or [],
             "author": paragraph.author,
             "author_id": paragraph.author_id,

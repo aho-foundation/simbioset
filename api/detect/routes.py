@@ -410,7 +410,7 @@ async def summary_endpoint(request: DetectRequest) -> Dict[str, Any]:
                 "key_points": result.get("key_points", []),
                 "topics": result.get("topics", []),
                 "sentiment": result.get("sentiment", "neutral"),
-                "entities": result.get("entities", [])
+                "entities": result.get("entities", []),
             }
             return validated_result
         except json.JSONDecodeError as json_error:
@@ -421,7 +421,7 @@ async def summary_endpoint(request: DetectRequest) -> Dict[str, Any]:
                 "key_points": [],
                 "topics": [],
                 "sentiment": "unknown",
-                "entities": []
+                "entities": [],
             }
 
     except Exception as e:

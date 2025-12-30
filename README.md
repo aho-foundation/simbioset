@@ -69,6 +69,9 @@ npx playwright test
 
 ### Dokku
 ```bash
+# Полное восстановление после критических проблем
+./scripts/full_recovery.sh simbioset-website
+
 # Быстрое восстановление (если приложение не работает)
 ./scripts/quick_fix.sh simbioset-website
 
@@ -80,6 +83,9 @@ npx playwright test
 
 # Диагностика проблем
 ./scripts/diagnose.sh simbioset-website
+
+# Настроить storage для приложения
+./scripts/setup_storage.sh simbioset-website
 
 # Полная настройка Weaviate (см. docs/infra/WEAVIATE_DOKKU_SETUP.md)
 dokku apps:create weaviate

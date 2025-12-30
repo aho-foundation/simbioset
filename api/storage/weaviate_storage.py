@@ -24,7 +24,7 @@ from api.settings import (
     WEAVIATE_URL,
     WEAVIATE_GRPC_URL,
     WEAVIATE_API_KEY,
-    WEAVIATE_CLASS_NAME
+    WEAVIATE_CLASS_NAME,
 )
 from api.storage.weaviate_schema import create_schema_if_not_exists
 from api.logger import root_logger

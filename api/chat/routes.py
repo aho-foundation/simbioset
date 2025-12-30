@@ -50,7 +50,9 @@ def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
     sources: List[Dict[str, str]] = []
 
     # Ищем раздел источников
-    sources_match = re.search(r'##\s*Источники?\s*\n(.*?)(?=\n##|\n###|\Z)', response_content, re.DOTALL | re.IGNORECASE)
+    sources_match = re.search(
+        r"##\s*Источники?\s*\n(.*?)(?=\n##|\n###|\Z)", response_content, re.DOTALL | re.IGNORECASE
+    )
 
     if not sources_match:
         return sources
@@ -60,29 +62,26 @@ def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
     # Парсим пронумерованный список источников
     # Формат: 1. Название источника (Тип)
     # Или: 1. Название источника
-    lines = sources_text.split('\n')
+    lines = sources_text.split("\n")
     for line in lines:
         line = line.strip()
         if not line:
             continue
 
         # Убираем нумерацию в начале строки (1., 2., etc.)
-        line = re.sub(r'^\d+\.\s*', '', line)
+        line = re.sub(r"^\d+\.\s*", "", line)
 
         # Разделяем название и тип (если есть в скобках)
-        type_match = re.search(r'\(([^)]+)\)$', line)
+        type_match = re.search(r"\(([^)]+)\)$", line)
         if type_match:
-            title = line[:type_match.start()].strip()
+            title = line[: type_match.start()].strip()
             source_type = type_match.group(1).strip()
         else:
             title = line
             source_type = "Неизвестный тип"
 
         if title:  # Только если есть название
-            sources.append({
-                'title': title,
-                'type': source_type
-            })
+            sources.append({"title": title, "type": source_type})
 
     return sources
 

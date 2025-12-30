@@ -53,23 +53,30 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 # 💾 Настройка локального кеша для HuggingFace моделей
 def get_index_dump_dir() -> str:
     """Определяет лучшую папку для индекса векторного поиска"""
-    # Приоритет /models если доступна, иначе ./models как fallback
-    return "/models" if Path("/models").exists() else "./models"
+    # Используем ту же логику, что и для моделей
+    return get_models_cache_dir()
 
 
 def get_models_cache_dir() -> str:
     """Определяет лучшую папку для кеша моделей"""
-    # Проверяем Dokku mount /app/models
-    mounted_path = Path("/app/models")
-    logger.info(
-        f"🔍 Checking /app/models - exists: {mounted_path.exists()}, writable: {os.access(str(mounted_path), os.W_OK) if mounted_path.exists() else 'N/A'}"
-    )
+    # Приоритетные пути для кеша моделей (от лучшего к худшему)
+    cache_paths = [
+        "/app/.cache",  # Shared cache storage (Dokku mount)
+        "/app/models",  # Models storage (Dokku mount)
+        "./models",  # Local fallback
+    ]
 
-    if mounted_path.exists() and os.access(str(mounted_path), os.W_OK):
-        logger.info(f"✅ Using Dokku mounted storage: {mounted_path}")
-        return str(mounted_path)
+    for cache_path in cache_paths:
+        path = Path(cache_path)
+        logger.info(
+            f"🔍 Checking {cache_path} - exists: {path.exists()}, writable: {os.access(str(path), os.W_OK) if path.exists() else 'N/A'}"
+        )
 
-    # Fallback to local directory
+        if path.exists() and os.access(str(path), os.W_OK):
+            logger.info(f"✅ Using cache directory: {path}")
+            return str(path)
+
+    # Если ничего не подошло, создаем локальную директорию
     cache_dir = Path("./models")
     cache_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"📁 Using local fallback: {cache_dir}")
