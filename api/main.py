@@ -118,53 +118,28 @@ async def lifespan(app: FastAPI):
         # Выбираем хранилище: Weaviate если доступен и не отключен, иначе FAISS
         storage: Union[FAISSStorage, WeaviateStorage]
 
-        # Проверяем переменную окружения для принудительного отключения Weaviate
-        force_faiss = os.getenv("FORCE_FAISS", "false").lower() in ["true", "1", "yes"]
-
-        if force_faiss:
-            log("🔧 FORCE_FAISS=true, используем только FAISSStorage")
-            storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
-            log("✅ FAISSStorage инициализирован (forced)")
-        # Если WEAVIATE_URL не задан - используем FAISS
-        elif not WEAVIATE_URL and not WEAVIATE_GRPC_URL:
-            log("📦 WEAVIATE_URL или WEAVIATE_GRPC_URL не задан, используем FAISSStorage")
+        # Если WEAVIATE_GRPC_URL не задан - используем FAISS
+        if not WEAVIATE_GRPC_URL:
+            log("📦 WEAVIATE_GRPC_URL не задан, используем FAISSStorage")
             storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
             log("✅ FAISSStorage инициализирован")
-        # Пробуем Weaviate с предварительной проверкой и fallback на FAISS
+        # Пробуем Weaviate напрямую (без предварительной проверки)
         else:
-            log(f"🔍 Проверяем доступность Weaviate на {WEAVIATE_URL}")
+            log(f"🎯 WEAVIATE_GRPC_URL задан ({WEAVIATE_GRPC_URL}), инициализируем WeaviateStorage...")
             try:
-                # Добавляем таймаут на всю проверку Weaviate (не более 10 секунд)
-                weaviate_available, status_msg = await asyncio.wait_for(
-                    check_weaviate_availability(WEAVIATE_URL), timeout=10.0
+                # Добавляем таймаут на инициализацию WeaviateStorage
+                storage = await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(
+                        None, lambda: WeaviateStorage(cache_folder=MODELS_CACHE_DIR)
+                    ),
+                    timeout=30.0,
                 )
-            except asyncio.TimeoutError:
-                log(f"⏰ Таймаут проверки Weaviate ({WEAVIATE_URL}), используем FAISSStorage")
-                weaviate_available, status_msg = False, "Timeout"
+                log("✅ WeaviateStorage инициализирован успешно")
             except Exception as e:
-                log(f"💥 Неожиданная ошибка при проверке Weaviate: {e}")
-                weaviate_available, status_msg = False, f"Error: {str(e)[:50]}"
-
-            if weaviate_available:
-                log(f"🎯 Weaviate доступен ({status_msg}), инициализируем WeaviateStorage...")
-                try:
-                    # Добавляем таймаут на инициализацию WeaviateStorage
-                    storage = await asyncio.wait_for(
-                        asyncio.get_event_loop().run_in_executor(
-                            None, lambda: WeaviateStorage(cache_folder=MODELS_CACHE_DIR)
-                        ),
-                        timeout=30.0,
-                    )
-                    log("✅ WeaviateStorage инициализирован успешно")
-                except Exception as e:
-                    log(f"💥 Ошибка инициализации WeaviateStorage: {e}")
-                    log("🔄 Переключаемся на FAISSStorage...")
-                    storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
-                    log("✅ FAISSStorage инициализирован (fallback после ошибки)")
-            else:
-                log(f"⚠️ Weaviate недоступен ({status_msg}), используем FAISSStorage")
+                log(f"💥 Ошибка инициализации WeaviateStorage: {e}")
+                log("🔄 Переключаемся на FAISSStorage...")
                 storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
-                log("✅ FAISSStorage инициализирован (fallback)")
+                log("✅ FAISSStorage инициализирован (fallback после ошибки)")
 
         # Create database repository and KB service
         node_repo = DatabaseNodeRepository(db_manager)

@@ -94,6 +94,7 @@ RUN mkdir -p /app/.cache/npm || true
 # Copy package files and install all dependencies (including dev)
 COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund && \
+    npx playwright install --with-deps && \
     npm cache clean --force
 
 # Copy source code
@@ -122,6 +123,7 @@ COPY --from=python-deps /opt/venv /opt/venv
 
 # Copy Node.js runtime deps and built assets
 COPY --from=node-deps /app/node_modules ./node_modules
+COPY --from=build-stage /app/.cache/ms-playwright /app/.cache/ms-playwright
 
 # Create directory for venv symlink (symlink will be created at runtime)
 RUN mkdir -p /opt

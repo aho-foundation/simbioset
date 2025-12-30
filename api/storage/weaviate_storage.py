@@ -58,16 +58,28 @@ class WeaviateStorage:
             auth_config = weaviate.auth.AuthApiKey(api_key=WEAVIATE_API_KEY)
 
         # Парсим HTTP URL для подключения
-        url_parts = WEAVIATE_URL.replace("http://", "").replace("https://", "").split(":")
+        # Если WEAVIATE_URL не задан, вычисляем из gRPC URL
+        weaviate_url = WEAVIATE_URL
+        if not weaviate_url:
+            # Вычисляем HTTP URL из gRPC URL (предполагаем стандартные порты)
+            grpc_parts = WEAVIATE_GRPC_URL.split(":")
+            grpc_host = grpc_parts[0] if grpc_parts else "localhost"
+            # Для Weaviate стандартный HTTP порт 8080, gRPC 50051
+            weaviate_url = f"http://{grpc_host}:8080"
+            log(f"🔧 WEAVIATE_URL не задан, вычисляем из gRPC: {weaviate_url}")
+
+        url_parts = weaviate_url.replace("http://", "").replace("https://", "").split(":")
         http_host = url_parts[0] if url_parts else "localhost"
         http_port = int(url_parts[1]) if len(url_parts) > 1 else 8080
-        http_secure = WEAVIATE_URL.startswith("https://")
+        http_secure = weaviate_url.startswith("https://")
 
         # Парсим gRPC URL отдельно
         grpc_parts = WEAVIATE_GRPC_URL.split(":")
         grpc_host = grpc_parts[0] if grpc_parts else "localhost"
         grpc_port = int(grpc_parts[1]) if len(grpc_parts) > 1 else 50051
         grpc_secure = False  # gRPC обычно не использует SSL во внутренней сети
+
+        log(f"🔗 Подключение к Weaviate - HTTP: {http_host}:{http_port} (secure: {http_secure}), gRPC: {grpc_host}:{grpc_port} (secure: {grpc_secure})")
 
         # Создаем подключение с приоритетом gRPC для векторных операций
         connection_params = weaviate.connect.base.ConnectionParams.from_params(
@@ -89,14 +101,21 @@ class WeaviateStorage:
 
         # Проверяем подключение и создаем схему
         try:
+            log("🔌 Вызываем client.connect()...")
             self.client.connect()
+            log("✅ client.connect() успешен")
+
+            log("📊 Получаем метаданные...")
             meta = self.client.get_meta()
-            log(f"✅ Подключено к Weaviate {meta.get('version', 'unknown')} на {WEAVIATE_URL}")
+            log(f"✅ Подключено к Weaviate {meta.get('version', 'unknown')} на {weaviate_url}")
 
             # Создаем схему, если её нет
+            log("📋 Проверяем/создаем схему...")
             create_schema_if_not_exists(self.client)
+            log("✅ Схема готова")
         except Exception as e:
             log(f"❌ Ошибка подключения к Weaviate: {e}")
+            log(f"🔍 Детали ошибки: {type(e).__name__}: {str(e)}")
             raise
 
         log(f"✅ Модель загружена, размерность эмбеддингов: {self.dimension}")
