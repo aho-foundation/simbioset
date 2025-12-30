@@ -4,8 +4,10 @@ FROM ghcr.io/astral-sh/uv:debian AS base
 # Install Node.js and setup uv venv
 RUN apt-get update && apt-get install -y curl ca-certificates gnupg \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt-get install -y nodejs \
-    && uv venv /opt/venv
+    && apt-get install -y nodejs
+
+# Setup uv venv
+RUN uv venv /opt/venv
 
 FROM base AS node-base
 
@@ -39,7 +41,7 @@ RUN if [ -d "/app/.cache/venv" ] && [ -f "/app/.cache/venv/bin/activate" ]; then
     else \
         echo "📦 Installing packages via pip..." && \
         . /opt/venv/bin/activate && \
-        uv pip install --cache-dir=/app/.cache/pip --no-cache-dir --index-url http://151.101.1.63/simple --allow-insecure-host 151.101.1.63 -r requirements.txt && \
+        uv pip install --cache-dir=/app/.cache/pip --no-cache-dir --index-url https://pypi.org/simple -r requirements.txt && \
         echo "✅ Fresh venv created in /opt/venv"; \
     fi
 
