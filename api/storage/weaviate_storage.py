@@ -10,7 +10,7 @@ from sentence_transformers import SentenceTransformer
 from datetime import datetime
 import weaviate
 from weaviate.classes.query import Filter, MetadataQuery, HybridFusion
-from weaviate.config import Timeout
+from weaviate.config import Timeout, AdditionalConfig
 import asyncio
 from functools import lru_cache
 
@@ -151,11 +151,14 @@ class WeaviateStorage:
                     insert=60,  # таймаут для вставки (batch операции могут быть долгими)
                 )
 
+                # Настраиваем дополнительные параметры клиента
+                additional_config = AdditionalConfig(timeout=timeout_config)
+
                 # Если gRPC предпочтителен, настраиваем клиент для использования gRPC по умолчанию
                 client_kwargs = {
                     "connection_params": connection_params,
                     "auth_client_secret": auth_config,
-                    "timeout_config": timeout_config,
+                    "additional_config": additional_config,
                 }
 
                 self.client = weaviate.WeaviateClient(**client_kwargs)  # type: ignore[arg-type]

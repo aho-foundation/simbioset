@@ -55,6 +55,9 @@
   - Исправлен импорт `Timeout` из `weaviate.config`
   - Добавлена правильная типизация переменной `last_error`
   - Исправлена логика обработки ошибок в `__del__` методе
+- **Weaviate Connection**: Исправлена передача таймаутов в WeaviateClient
+  - Таймауты теперь передаются через `additional_config` вместо `timeout_config`
+  - Используется правильный API Weaviate Python client
 
 ### Fixed
 - **Weaviate Connection**: Исправлена логика подключения согласно best practices
