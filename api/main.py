@@ -100,8 +100,10 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
     log("🚀 Starting Simbioset API...")
+    log(f"📋 Environment: WEAVIATE_URL={WEAVIATE_URL}, FORCE_FAISS={os.getenv('FORCE_FAISS', 'not_set')}")
 
-    # Initialize storage services
+    try:
+        # Initialize storage services
     # Используем фабрику для автоматического выбора SQLite или PostgreSQL
     db_manager = create_database_manager(database_url=DATABASE_URL, db_path=DATABASE_PATH or "data/storage.db")
     db_manager.connect()
@@ -132,6 +134,9 @@ async def lifespan(app: FastAPI):
         except asyncio.TimeoutError:
             log(f"⏰ Таймаут проверки Weaviate ({WEAVIATE_URL}), используем FAISSStorage")
             weaviate_available, status_msg = False, "Timeout"
+        except Exception as e:
+            log(f"💥 Неожиданная ошибка при проверке Weaviate: {e}")
+            weaviate_available, status_msg = False, f"Error: {str(e)[:50]}"
 
         if weaviate_available:
             log(f"🎯 Weaviate доступен ({status_msg}), инициализируем WeaviateStorage...")
@@ -203,12 +208,19 @@ async def lifespan(app: FastAPI):
     # Run the bot in the background with kb_service
     asyncio.create_task(start_bot(kb_service=kb_service))
 
-    # Отмечаем приложение как готовое
-    app.state.ready = True
+        # Отмечаем приложение как готовое
+        app.state.ready = True
 
-    log("✅ Simbioset API started successfully")
+        log("✅ Simbioset API started successfully")
 
-    yield
+        yield
+
+    except Exception as e:
+        log(f"💥 Critical error during startup: {e}")
+        import traceback
+        log(f"📋 Full traceback:\n{traceback.format_exc()}")
+        # Не устанавливаем app.state.ready = True, чтобы health check показывал ошибку
+        raise  # Передаем ошибку выше
 
     # Shutdown
     log("🛑 Shutting down Simbioset API...")

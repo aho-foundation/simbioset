@@ -60,6 +60,13 @@ else
     echo "ℹ️  FORCE_FAISS не установлен (по умолчанию false)"
 fi
 
+# Подробная проверка подключения к Weaviate
+if [ -n "$WEAVIATE_CONFIG" ] && dokku ps:report weaviate 2>/dev/null | grep -q "running"; then
+    echo ""
+    echo "🔗 Подробная проверка подключения к Weaviate:"
+    ./scripts/test_weaviate_from_app.sh "$APP_NAME" 2>/dev/null || echo "❌ Не удалось выполнить тест"
+fi
+
 echo ""
 echo "💡 Рекомендации:"
 echo "- Если приложение не запускается: проверь логи 'dokku logs $APP_NAME --tail 100'"

@@ -147,6 +147,9 @@ dokku ps:restart simbioset-website
 # Проверить что использует порт 8080
 ./scripts/check_port_8080.sh
 
+# Тестировать подключение к Weaviate из приложения
+./scripts/test_weaviate_from_app.sh simbioset-website
+
 # Ручная диагностика:
 # Проверить статус приложений
 dokku ps:report simbioset-website
