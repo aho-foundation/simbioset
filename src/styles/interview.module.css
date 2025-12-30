@@ -438,51 +438,23 @@
   width: 100%;
   padding: 0;
   margin: 0;
-  animation: editorFadeIn 0.2s ease-out;
-  will-change: opacity, transform;
+  /* Бесшовный переход без анимации */
   /* Предотвращение layout shift */
   min-height: fit-content;
   position: relative;
   /* Сохранение тех же отступов, что и у conceptContent */
   box-sizing: border-box;
-  /* Плавный переход */
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-@keyframes editorFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-2px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .editToolbar {
   display: flex;
   gap: 0.25rem;
-  padding: 0.5rem;
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-bottom: none;
-  border-radius: 6px 6px 0 0;
+  padding: 0.5rem 0;
+  /* Убраны бордеры и фон для бесшовности */
+  background: transparent;
+  border: none;
   flex-wrap: wrap;
-  margin-bottom: 0;
-  /* Плавное появление */
-  animation: toolbarFadeIn 0.15s ease-out;
-}
-
-@keyframes toolbarFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  margin-bottom: 0.5rem;
 }
 
 .toolbarButton {
@@ -518,22 +490,23 @@
 .editTextarea {
   width: 100%;
   min-height: 100px;
-  padding: 0.75rem;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 0 0 6px 6px;
+  padding: 0;
+  /* Убраны бордеры для бесшовности */
+  border: none;
+  border-radius: 0;
   font-family: inherit;
   font-size: 1rem;
   line-height: 1.5;
   resize: vertical;
-  background: #fff;
+  /* Прозрачный фон для бесшовности */
+  background: transparent;
   color: #1e293b;
   box-sizing: border-box;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   /* Предотвращение layout shift */
   overflow-wrap: break-word;
   word-wrap: break-word;
   /* Плавное изменение размера */
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, min-height 0.2s ease;
+  transition: min-height 0.2s ease;
 }
 
 .editContentEditable {
@@ -545,9 +518,7 @@
 
 .editContentEditable:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  /* Убраны бордеры и тени для бесшовности */
 }
 
 .editContentEditable[data-placeholder]:empty:before {
@@ -557,7 +528,7 @@
 }
 
 .editContentEditable.focused {
-  border-color: #3b82f6;
+  /* Убраны стили для бесшовности */
 }
 
 .editActions {
@@ -565,20 +536,9 @@
   gap: 0.5rem;
   margin-top: 0.75rem;
   padding-top: 0.5rem;
+  /* Убран бордер для бесшовности */
   border-top: 1px solid rgba(0, 0, 0, 0.05);
   justify-content: flex-end;
-  animation: actionsFadeIn 0.2s ease-out 0.1s both;
-}
-
-@keyframes actionsFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .editButton {

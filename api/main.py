@@ -43,7 +43,7 @@ try:
 
     HAS_HTTPX = True
 except ImportError:
-    import requests
+    import requests  # type: ignore[import-untyped]
 
     HAS_HTTPX = False
 
@@ -61,7 +61,7 @@ async def check_weaviate_availability(url: str) -> tuple[bool, str]:
                 response = await client.get(f"{url}/v1/meta")
         else:
             # Fallback на requests с executor
-            import requests
+            import requests  # type: ignore[import-untyped]
 
             response = await asyncio.get_event_loop().run_in_executor(
                 None, lambda: requests.get(f"{url}/v1/meta", timeout=5)

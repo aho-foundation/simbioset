@@ -1,7 +1,7 @@
 import { A } from '@solidjs/router'
 import { Component } from 'solid-js'
-import { useI18n } from '~/i18n'
 import ParagraphSearch from '~/components/ParagraphSearch'
+import { useI18n } from '~/i18n'
 
 import styles from '~/styles/home.module.css'
 
@@ -159,7 +159,9 @@ const Home: Component = () => {
         <div class={styles.demoContainer}>
           <h2 class={styles.demoTitle}>{t('Попробуйте поиск по базе знаний')}</h2>
           <p class={styles.demoDescription}>
-            {t('Используйте мощный векторный поиск для нахождения релевантной информации в нашей базе знаний')}
+            {t(
+              'Используйте мощный векторный поиск для нахождения релевантной информации в нашей базе знаний'
+            )}
           </p>
           <div class={styles.demoSearch}>
             <ParagraphSearch limit={5} />

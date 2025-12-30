@@ -85,7 +85,7 @@ class WeaviateStorage:
             "auth_client_secret": auth_config,
         }
 
-        self.client = weaviate.WeaviateClient(**client_kwargs)
+        self.client = weaviate.WeaviateClient(**client_kwargs)  # type: ignore[arg-type]
 
         # Проверяем подключение и создаем схему
         try:

@@ -1,5 +1,5 @@
-import { createResource, createSignal } from 'solid-js'
-import { ParagraphSchema, SearchResponseSchema, type Paragraph, type SearchResponse } from './schemas'
+import { createResource } from 'solid-js'
+import { type Paragraph, ParagraphSchema, type SearchResponse, SearchResponseSchema } from './schemas'
 
 // Простой клиент Weaviate для frontend
 export class WeaviateClient {
@@ -24,7 +24,7 @@ export class WeaviateClient {
       ...(params.limit && { limit: params.limit.toString() }),
       ...(params.tags && { tags: params.tags.join(',') }),
       ...(params.location && { location: params.location }),
-      ...(params.ecosystem_id && { ecosystem_id: params.ecosystem_id }),
+      ...(params.ecosystem_id && { ecosystem_id: params.ecosystem_id })
     })
 
     const response = await fetch(`${this.baseUrl}/search?${searchParams}`)
@@ -52,13 +52,16 @@ export class WeaviateClient {
 export const weaviateClient = new WeaviateClient()
 
 // SolidJS хуки для работы с Weaviate
-export function createParagraphSearch(query: () => string, options: {
-  document_id?: string
-  limit?: number
-  tags?: string[]
-  location?: string
-  ecosystem_id?: string
-} = {}) {
+export function createParagraphSearch(
+  query: () => string,
+  options: {
+    document_id?: string
+    limit?: number
+    tags?: string[]
+    location?: string
+    ecosystem_id?: string
+  } = {}
+) {
   return createResource(
     () => {
       const q = query()

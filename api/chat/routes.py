@@ -60,11 +60,11 @@ def remove_sources_section_from_content(content: str) -> str:
         # Заголовок в середине текста
         r"\n##+\s*Источники:?\s*\n.*?(?=\n##+|\n###+|\Z)",
     ]
-    
+
     cleaned_content = content
     for pattern in patterns:
         cleaned_content = re.sub(pattern, "", cleaned_content, flags=re.DOTALL | re.IGNORECASE | re.MULTILINE)
-    
+
     # Удаляем лишние пустые строки в конце
     return cleaned_content.strip()
 

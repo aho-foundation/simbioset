@@ -100,13 +100,13 @@ async def get_paragraphs(
 
 @router.get("/search")
 async def simple_search(
+    request: Request,
     q: str = Query(..., description="Search query"),
     document_id: Optional[str] = Query(None, description="Filter by document ID"),
     limit: int = Query(10, ge=1, le=50, description="Number of results"),
     tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
     location: Optional[str] = Query(None, description="Filter by location"),
     ecosystem_id: Optional[str] = Query(None, description="Filter by ecosystem ID"),
-    request: Request = None,
 ):
     """
     Simple search endpoint for frontend (GET with query params).

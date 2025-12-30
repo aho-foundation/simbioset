@@ -106,7 +106,7 @@ const InterviewPage = () => {
   // Проверка, достаточно ли контента для отображения аналитической панели (минимум 2 сообщения)
   const canShowAnalyticsPanel = () => {
     const tree = conversationTree()
-    return tree && tree.stats && tree.stats.totalNodes >= 2
+    return tree?.stats && tree.stats.totalNodes >= 2
   }
 
   let inputAreaRef: HTMLDivElement | undefined
@@ -319,10 +319,10 @@ const InterviewPage = () => {
 
       if (!res.ok) {
         // Показываем ошибку на кнопке вместо сообщения в чате
-        setDetectorErrors(prev => ({ ...prev, [kind]: true }))
+        setDetectorErrors((prev) => ({ ...prev, [kind]: true }))
         // Автоматически сбрасываем ошибку через 2 секунды
         setTimeout(() => {
-          setDetectorErrors(prev => ({ ...prev, [kind]: false }))
+          setDetectorErrors((prev) => ({ ...prev, [kind]: false }))
         }, 2000)
         return
       }
@@ -335,12 +335,12 @@ const InterviewPage = () => {
         all: 'Анализ'
       }
       appendDetectorResult(titleMap[kind], data)
-    } catch (e) {
+    } catch (_e) {
       // Показываем ошибку на кнопке вместо сообщения в чате
-      setDetectorErrors(prev => ({ ...prev, [kind]: true }))
+      setDetectorErrors((prev) => ({ ...prev, [kind]: true }))
       // Автоматически сбрасываем ошибку через 2 секунды
       setTimeout(() => {
-        setDetectorErrors(prev => ({ ...prev, [kind]: false }))
+        setDetectorErrors((prev) => ({ ...prev, [kind]: false }))
       }, 2000)
     } finally {
       setDetectorLoading(false)
@@ -875,21 +875,32 @@ const InterviewPage = () => {
         {/* Правая панель со связанными знаниями */}
         <div class={`${styles.conversationTree} ${isPanelOpen() ? styles.panelOpen : ''}`}>
           <div class={styles.treeHeader}>
-            <DetectorsToolbar onRunDetector={runDetector} detectorLoading={detectorLoading()} detectorErrors={detectorErrors()} />
+            <DetectorsToolbar
+              onRunDetector={runDetector}
+              detectorLoading={detectorLoading()}
+              detectorErrors={detectorErrors()}
+            />
             <button
               onClick={generateSummary}
               disabled={!canShowAnalyticsPanel() || summaryLoading()}
               class={styles.summaryBtn}
               title={summaryLoading() ? 'Генерация саммари...' : 'Создать саммари диалога'}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14,2 14,8 20,8" />
                 <line x1="16" y1="13" x2="8" y2="13" />
                 <line x1="16" y1="17" x2="8" y2="17" />
                 <polyline points="10,9 9,9 8,9" />
               </svg>
-              {summaryLoading() && <span class={styles.loadingSpinner}></span>}
+              {summaryLoading() && <span class={styles.loadingSpinner} />}
             </button>
             <button
               onClick={() => setIsPanelOpen(false)}

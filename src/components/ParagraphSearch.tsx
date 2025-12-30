@@ -1,7 +1,7 @@
 import { Component, createSignal, For, Show } from 'solid-js'
 import { createParagraphSearch } from '~/lib/weaviate'
-import Card from './ui/Card'
 import styles from './ParagraphSearch.module.css'
+import Card from './ui/Card'
 
 const ParagraphSearch: Component<{
   documentId?: string
@@ -10,7 +10,7 @@ const ParagraphSearch: Component<{
   const [query, setQuery] = createSignal('')
   const [searchData] = createParagraphSearch(query, {
     document_id: props.documentId,
-    limit: props.limit || 10,
+    limit: props.limit || 10
   })
 
   const handleSearch = (e: Event) => {
@@ -52,9 +52,7 @@ const ParagraphSearch: Component<{
                 <div class={styles.resultMeta}>
                   <span class={styles.score}>Схожесть: {(result.score * 100).toFixed(1)}%</span>
                   <Show when={result.paragraph.tags?.length}>
-                    <span class={styles.tags}>
-                      {result.paragraph.tags!.join(', ')}
-                    </span>
+                    <span class={styles.tags}>{result.paragraph.tags!.join(', ')}</span>
                   </Show>
                   <Show when={result.paragraph.author}>
                     <span class={styles.author}>{result.paragraph.author}</span>

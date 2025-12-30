@@ -95,19 +95,34 @@ export const DefaultSourceIcon: Component = () => (
 // Функция для получения иконки по типу источника
 export const getSourceIcon = (sourceType: string): Component => {
   const typeLower = sourceType.toLowerCase()
-  
+
   if (typeLower.includes('база знаний') || typeLower.includes('knowledge base')) {
     return KnowledgeBaseIcon
   }
-  if (typeLower.includes('научная') || typeLower.includes('литература') || typeLower.includes('scientific') || typeLower.includes('literature')) {
+  if (
+    typeLower.includes('научная') ||
+    typeLower.includes('литература') ||
+    typeLower.includes('scientific') ||
+    typeLower.includes('literature')
+  ) {
     return ScientificLiteratureIcon
   }
-  if (typeLower.includes('веб') || typeLower.includes('поиск') || typeLower.includes('web') || typeLower.includes('search')) {
+  if (
+    typeLower.includes('веб') ||
+    typeLower.includes('поиск') ||
+    typeLower.includes('web') ||
+    typeLower.includes('search')
+  ) {
     return WebSearchIcon
   }
-  if (typeLower.includes('публикация') || typeLower.includes('исследование') || typeLower.includes('publication') || typeLower.includes('research')) {
+  if (
+    typeLower.includes('публикация') ||
+    typeLower.includes('исследование') ||
+    typeLower.includes('publication') ||
+    typeLower.includes('research')
+  ) {
     return PublicationIcon
   }
-  
+
   return DefaultSourceIcon
 }

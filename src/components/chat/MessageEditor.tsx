@@ -16,6 +16,19 @@ export const MessageEditor: Component<MessageEditorProps> = (props) => {
   const [markdownContent, setMarkdownContent] = createSignal(props.content)
   const [isUpdating, setIsUpdating] = createSignal(false)
 
+  // Обновляем содержимое при изменении props.content (когда компонент уже смонтирован)
+  createEffect(() => {
+    if (props.content && editorRef() && !isUpdating() && markdownContent() !== props.content) {
+      const html = markdownToHtml(props.content)
+      if (editorRef()!.innerHTML !== html) {
+        setIsUpdating(true)
+        editorRef()!.innerHTML = html
+        setMarkdownContent(props.content)
+        setIsUpdating(false)
+      }
+    }
+  })
+
   // Конвертируем markdown в HTML для отображения
   const markdownToHtml = (markdown: string): string => {
     try {
@@ -172,20 +185,26 @@ export const MessageEditor: Component<MessageEditorProps> = (props) => {
   }
 
   onMount(() => {
-    // Устанавливаем начальное содержимое
+    // Устанавливаем начальное содержимое при монтировании
     if (editorRef()) {
-      editorRef()!.innerHTML = markdownToHtml(props.content)
-      setMarkdownContent(props.content)
+      const content = props.content || ''
+      const html = markdownToHtml(content)
+      editorRef()!.innerHTML = html
+      setMarkdownContent(content)
       // Автофокус и установка курсора в конец
-      editorRef()!.focus()
-      const range = document.createRange()
-      const selection = window.getSelection()
-      if (selection && editorRef()!.childNodes.length > 0) {
-        range.selectNodeContents(editorRef()!)
-        range.collapse(false)
-        selection.removeAllRanges()
-        selection.addRange(range)
-      }
+      setTimeout(() => {
+        if (editorRef()) {
+          editorRef()!.focus()
+          const range = document.createRange()
+          const selection = window.getSelection()
+          if (selection && editorRef()!.childNodes.length > 0) {
+            range.selectNodeContents(editorRef()!)
+            range.collapse(false)
+            selection.removeAllRanges()
+            selection.addRange(range)
+          }
+        }
+      }, 10)
     }
   })
 

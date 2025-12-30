@@ -12,17 +12,17 @@ export const ParagraphSchema = z.object({
   author_id: z.number().optional(),
   location: z.string().optional(),
   ecosystem_id: z.string().optional(),
-  embedding: z.array(z.number()).optional(),
+  embedding: z.array(z.number()).optional()
 })
 
 export const SearchResultSchema = z.object({
   paragraph: ParagraphSchema,
-  score: z.number(),
+  score: z.number()
 })
 
 export const SearchResponseSchema = z.object({
   results: z.array(SearchResultSchema),
-  total: z.number(),
+  total: z.number()
 })
 
 export type Paragraph = z.infer<typeof ParagraphSchema>

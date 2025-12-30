@@ -1,8 +1,8 @@
 import { Component } from 'solid-js'
 import styles from '~/styles/interview.module.css'
+import type { MessageSource } from '~/types/chat'
 import { CopyIcon, EditIcon, FactCheckIcon } from './MessageIcons'
 import { SourcesList } from './SourcesList'
-import type { MessageSource } from '~/types/chat'
 
 interface MessageActionsProps {
   content: string
