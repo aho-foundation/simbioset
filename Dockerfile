@@ -95,8 +95,13 @@ RUN mkdir -p /app/.cache/npm /app/.cache/ms-playwright || true
 # Copy package files and install all dependencies (including dev)
 COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund && \
-    echo "Installing Playwright browsers to $PLAYWRIGHT_BROWSERS_PATH" && \
-    npx playwright install --with-deps && \
+    echo "Checking Playwright browsers in $PLAYWRIGHT_BROWSERS_PATH..." && \
+    if ! find $PLAYWRIGHT_BROWSERS_PATH -maxdepth 1 -type d -name "chromium-*" 2>/dev/null | grep -q .; then \
+        echo "Installing Playwright chromium browser (only, needed for E2E tests)..." && \
+        npx playwright install --with-deps chromium; \
+    else \
+        echo "✅ Chromium browser already exists, skipping installation"; \
+    fi && \
     echo "Playwright browsers installed:" && \
     ls -la $PLAYWRIGHT_BROWSERS_PATH/ && \
     npm cache clean --force
@@ -129,14 +134,22 @@ COPY --from=python-deps /opt/venv /opt/venv
 COPY --from=node-deps /app/node_modules ./node_modules
 COPY package.json package-lock.json* ./
 
-# Install Playwright browsers for runtime
+# Copy Playwright browsers from build-stage (installed during build)
+COPY --from=build-stage /app/.cache/ms-playwright /app/.cache/ms-playwright
+
+# Install Playwright browsers only if missing (fallback for cases where build-stage didn't install)
 RUN mkdir -p /app/.cache/ms-playwright && \
-    echo "Installing Playwright browsers for runtime..." && \
-    npm install @playwright/test --no-save --no-audit --no-fund && \
-    npx playwright install --with-deps chromium && \
+    echo "Checking Playwright chromium browser for runtime..." && \
+    if ! find /app/.cache/ms-playwright -maxdepth 1 -type d -name "chromium-*" 2>/dev/null | grep -q .; then \
+        echo "⚠️ Browsers not found, installing Playwright chromium browser..." && \
+        npm install @playwright/test --no-save --no-audit --no-fund && \
+        npx playwright install --with-deps chromium && \
+        npm uninstall @playwright/test; \
+    else \
+        echo "✅ Chromium browser found, skipping installation"; \
+    fi && \
     echo "Runtime Playwright browsers:" && \
-    ls -la /app/.cache/ms-playwright/ && \
-    npm uninstall @playwright/test
+    ls -la /app/.cache/ms-playwright/
 
 # Create directory for venv symlink (symlink will be created at runtime)
 RUN mkdir -p /opt
