@@ -2,7 +2,7 @@
 FROM ghcr.io/astral-sh/uv:debian AS base
 
 # Install Node.js and setup uv venv
-RUN apt-get update && apt-get install -y curl \
+RUN apt-get update && apt-get install -y curl ca-certificates gnupg \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs \
     && uv venv /opt/venv
@@ -39,7 +39,7 @@ RUN if [ -d "/app/.cache/venv" ] && [ -f "/app/.cache/venv/bin/activate" ]; then
     else \
         echo "📦 Installing packages via pip..." && \
         . /opt/venv/bin/activate && \
-        pip install --cache-dir=/app/.cache/pip --no-cache-dir --index-url http://151.101.1.63/simple --trusted-host 151.101.1.63 --retries 50 --timeout 300 -r requirements.txt && \
+        uv pip install --cache-dir=/app/.cache/pip --no-cache-dir --index-url http://151.101.1.63/simple --trusted-host 151.101.1.63 --retries 50 --timeout 300 -r requirements.txt && \
         echo "✅ Fresh venv created in /opt/venv"; \
     fi
 
@@ -79,7 +79,7 @@ FROM base AS build-stage
 WORKDIR /app
 
 # Install git if needed (Node.js image might have it)
-RUN apk add --no-cache git || echo "git already installed"
+RUN apt-get update && apt-get install -y git || echo "git already installed"
 
 # Set cache directories for build stage
 ENV NPM_CONFIG_CACHE=/app/.cache/npm \
@@ -113,7 +113,7 @@ FROM base AS production
 WORKDIR /usr/src/app
 
 # Install curl if needed for healthchecks
-RUN apk add --no-cache curl || echo "curl already available"
+RUN apt-get update && apt-get install -y curl || echo "curl already available"
 
 # Copy Python virtual environment from python-deps stage
 COPY --from=python-deps /opt/venv /opt/venv
