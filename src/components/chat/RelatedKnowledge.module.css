@@ -1,0 +1,112 @@
+.relatedKnowledge {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1rem;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sectionTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.emptyState {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  padding: 1rem;
+  text-align: center;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px dashed rgba(0, 0, 0, 0.1);
+}
+
+.nodesList,
+.dialogsList,
+.sourcesList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nodeItem,
+.dialogItem {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.nodeItem:hover,
+.dialogItem:hover {
+  background: #f1f5f9;
+  border-color: rgba(0, 0, 0, 0.1);
+  transform: translateX(2px);
+}
+
+.nodeContent,
+.dialogContent {
+  font-size: 0.875rem;
+  color: #1e293b;
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+}
+
+.nodeMeta,
+.dialogMeta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+}
+
+.nodeType,
+.nodeCategory {
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.05);
+  color: #64748b;
+}
+
+.dialogCount {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.sourceItem {
+  padding: 0.5rem 0.75rem;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.sourceLink {
+  color: #3b82f6;
+  text-decoration: none;
+  font-size: 0.875rem;
+  display: block;
+  transition: color 0.2s ease;
+}
+
+.sourceLink:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.sourceTitle {
+  color: #1e293b;
+  font-size: 0.875rem;
+}

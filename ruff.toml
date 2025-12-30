@@ -1,0 +1,47 @@
+# Конфигурация ruff
+# Философия: реальные ошибки важнее педантичности
+
+# Общие настройки
+line-length = 120
+target-version = "py313"
+
+[lint]
+# Выбираем только важные правила
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+]
+
+# Игнорируем избыточные/раздражающие правила
+ignore = [
+    "E402",  # Module level import not at top - иногда нужны условные импорты
+    "E501",  # Line too long - промпты и докстринги могут быть длинными
+    "E722",  # Bare except - иногда нужно для общего catch-all
+    "E712",  # Comparison to True/False - SQLAlchemy так делает
+    "F401",  # Unused import - может быть для re-export
+    "F403",  # Star import - используется для styles
+    "F405",  # May be undefined from star imports - следствие F403
+    "F811",  # Redefinition - иногда нужно для overloading
+    "F821",  # Undefined name - часто false positive
+    "F841",  # Unused variable - иногда нужно для распаковки
+    "W291",  # Trailing whitespace - автоформаттер разберется
+    "W293",  # Blank line with whitespace - автоформаттер разберется
+    "W605",  # Invalid escape sequence - в докстрингах это норма
+]
+
+[lint.per-file-ignores]
+# Специфичные исключения для отдельных файлов
+"__init__.py" = ["F401"]  # Импорты для re-export это норма
+"tests/*.py" = ["F841"]  # В тестах unused переменные - это норма
+
+[format]
+# Форматирование
+indent-style = "space"
+line-ending = "auto"
+quote-style = "double"
+
+[lint.isort]
+# Сортировка импортов
+known-first-party = ["api"]
+

@@ -1,0 +1,95 @@
+---
+description: Python стандарты для core и migrator проектов
+globs: core/**/*.py,migrator/**/*.py
+alwaysApply: true
+---
+
+# 🐍 Python Standards
+
+## 📋 Code Style
+- **Python 3.12+** required
+- **Line length**: 120 characters max
+- **Type hints**: Required for all functions
+- **Docstrings**: Required for public methods
+- **Ruff**: linting and formatting
+- **MyPy**: typechecks
+
+## 🧪 Testing
+- **Pytest** for testing
+- **85%+ coverage** required
+- Test both positive and negative cases
+- Mock external dependencies
+
+## ✅ Good Examples
+```python
+# Good example
+async def create_reaction(
+    session: Session,
+    author_id: int,
+    reaction_data: dict[str, Any]
+) -> dict[str, Any]:
+    """
+    Create a new reaction.
+
+    Args:
+        session: Database session
+        author_id: ID of the author creating the reaction
+        reaction_data: Reaction data
+
+    Returns:
+        Created reaction data
+
+    Raises:
+        ValueError: If reaction data is invalid
+    """
+    if not reaction_data.get("kind"):
+        raise ValueError("Reaction kind is required")
+
+    reaction = Reaction(**reaction_data)
+    session.add(reaction)
+    session.commit()
+
+    return reaction.dict()
+```
+
+## 🔒 Security
+- **Input validation**: Клиент И сервер
+- **SQL injection**: Используй ORM, не raw SQL
+- **JWT**: + refresh tokens
+- **Environment variables**: Никогда не хардкодь секреты
+
+## 📊 Performance
+- **Async/await**: Для I/O операций
+- **Database**: Используй connection pooling
+- **Caching**: Redis для частых запросов
+- **Monitoring**: Логируй метрики производительности
+
+## 🚫 Anti-patterns
+```python
+# ❌ НЕ делай
+def bad_function(data):  # Нет типов
+    return data.get('key')  # Нет обработки ошибок
+
+# ❌ НЕ используй raw SQL
+query = f"SELECT * FROM users WHERE id = {user_id}"  # SQL injection!
+
+# ❌ НЕ хардкодь конфиги
+DATABASE_URL = "postgresql://user:pass@localhost/db"  # В .env!
+```
+
+## 📝 Commit Messages
+Follow [Conventional Commits](https://conventionalcommits.org/):
+```
+feat: add user authentication
+fix: resolve database connection issue
+docs: update API documentation
+test: add tests for reaction system
+refactor: improve GraphQL resolvers
+```
+
+## Final Checks
+```sh
+uv run ruff check . --fix
+uv run ruff format --line-length 120
+uv run mypy .
+```

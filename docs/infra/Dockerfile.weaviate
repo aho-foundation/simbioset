@@ -1,0 +1,2 @@
+FROM cr.weaviate.io/semitechnologies/weaviate
+EXPOSE 8080 50051

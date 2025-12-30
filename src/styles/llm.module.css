@@ -1,0 +1,274 @@
+.chatContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+  background-color: #ffffff;
+  border: none;
+ border-radius: 0;
+  box-shadow: none;
+}
+
+.chatHeader {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.chatHeader h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+  color: #1e293b;
+}
+
+.chatHeader p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0;
+}
+
+.emptyTree {
+  text-align: center;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.treeNode {
+  margin-bottom: 0.5rem;
+ position: relative;
+}
+
+.treeNode::before {
+  content: '';
+  position: absolute;
+  left: -15px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: #cbd5e1;
+}
+
+.treeNodeHeader {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-left: 2px solid transparent;
+  padding: 0.5rem 0;
+}
+
+.treeNodeHeader:hover {
+  background-color: #f1f5f9;
+}
+
+.treeNodeHeader.selected {
+  border-left-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.expandButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #64748b;
+  padding: 0.25rem;
+  margin-right: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 2px;
+  transition: background-color 0.2s;
+}
+
+.expandButton:hover {
+  background-color: #e2e8f0;
+  color: #3b82f6;
+}
+
+.nodeCheckbox {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+.message {
+  display: flex;
+  margin-bottom: 0.5rem;
+}
+
+.messageContent {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  max-width: 85%;
+}
+
+.userMessage {
+  background-color: #dbeafe;
+  align-self: flex-end;
+  margin-left: auto;
+}
+
+.botMessage {
+  background-color: #f1f5f9;
+  align-self: flex-start;
+}
+
+.timestamp {
+  font-size: 0.7rem;
+ color: #94a3b8;
+  margin-top: 0.25rem;
+  align-self: flex-end;
+}
+
+.selectedNode {
+  background-color: #fef3c7;
+}
+
+.treeChildren {
+  margin-left: 1rem;
+}
+
+.inputArea {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.input {
+  flex: 1;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 0.5rem;
+  resize: none;
+  min-height: 80px;
+  font-family: inherit;
+  background-color: #f8fafc;
+  box-shadow: none;
+  transition: border-color 0.2s;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.sendButton {
+  padding: 0.75rem 1.5rem;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sendButton:hover {
+  background-color: #2563eb;
+}
+
+.treeViewButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+  color: #64748b;
+}
+
+.treeViewButton:hover {
+  background-color: #f1f5f9;
+  color: #3b82f6;
+}
+
+.headerControls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.treeViewContainer {
+  padding: 1rem;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.treeBranchLine {
+  position: absolute;
+  left: -15px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: #cbd5e1;
+  z-index: 1;
+}
+
+.treeNodeContainer {
+  position: relative;
+  margin-bottom: 0.5rem;
+}
+
+.treeNode {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.selectedNode {
+  background-color: #fef3c7;
+  border-left: 3px solid #3b82f6;
+}
+
+.message {
+  display: flex;
+  margin-bottom: 0.25rem;
+}
+
+.messageContent {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  position: relative;
+}
+
+.userMessage {
+  background-color: #dbeafe;
+  align-self: flex-end;
+  margin-left: auto;
+}
+
+.botMessage {
+  background-color: #f1f5f9;
+  align-self: flex-start;
+}
+
+.timestamp {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.treeChildren {
+  position: relative;
+  padding-left: 1.5rem;
+  margin-top: 0.5rem;
+}

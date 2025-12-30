@@ -1,0 +1,203 @@
+# ⚡ SolidJS != React (Критичные отличия)
+
+IMPORTANT: follow biomejs linter rules!
+
+## ⚡ Quick Quality Gates
+```
+- [ ] Нет async createEffect
+- [ ] Props через props.*, НЕ деструктуризация  
+- [ ] createResource для async + initialValue
+- [ ] Логи лаконичные (НЕ дампы объектов)
+- [ ] props.data из route.load может быть Promise!
+- [ ] npm run fix && npm run format && npm run typecheck
+```
+
+## 🚫 НИКОГДА не делай
+```typescript
+// ❌ ASYNC createEffect - ломает гидрацию
+createEffect(async () => await fetchData())
+
+// ❌ Деструктуризация PROPS - теряет реактивность  
+const { data } = props // ❌ НЕТ!
+const Component = ({ data }: Props) => {} // ❌ НЕТ!
+
+// ❌ Window в init - SSR error
+const [width] = createSignal(window.innerWidth)
+
+// ❌ Нестабильные ключи
+{ id: Math.random(), text: 'Item' }
+
+// ❌ JSX в пропсах - вызывает гидрационный мисматч!
+<Component header={<h2>{title}</h2>} /> // ПЛОХО!
+<Row3 header={<div>{text}</div>} />     // ПЛОХО!
+
+// ❌ ИЗБЫТОЧНАЯ МЕМОИЗАЦИЯ (Главная Ошибка!)
+const simpleValue = createMemo(() => props.data || []) // ПЛОХО!
+const isActive = createMemo(() => status() === 'active') // ПЛОХО!
+const finalData = createMemo(() => ssrData || clientData) // ПЛОХО!
+const result = createMemo(() => condition ? a : b) // ПЛОХО!
+
+// ❌ createResource для перезапроса SSR данных - показывает индикатор загрузки
+const [data] = createResource(() => 'key', () => loadData())
+
+// ❌ typeof window для клиентского рендера - ненадежно для гидрации
+<Show when={typeof window !== 'undefined'}>
+```
+
+## ✅ Правильные паттерны
+
+### Props реактивность
+```typescript
+// ✅ ВСЕГДА props.*
+const Component = (props: Props) => {
+  return <div>{props.data}</div> // Реактивно!
+}
+
+// ✅ В функциях тоже props.*
+createEffect(() => console.log(props.loading))
+```
+
+### Async данные
+```typescript
+// ✅ ЕДИНСТВЕННЫЙ способ - createResource
+const [data] = createResource(
+  () => params(),
+  async (params) => loadData(params),
+  { initialValue: props.data?.items } // SSR данные
+)
+```
+
+### 🚨 SSR + гидрация (КРИТИЧНО!)
+```typescript
+// ❌ НИКОГДА - props.data может быть Promise в SolidStart!
+const routeData = () => props.data
+const items = routeData()?.featuredShouts // ОШИБКА если Promise!
+
+// ✅ ПРАВИЛЬНО - createResource для разрешения Promise
+export default function Page(props: RouteSectionProps<Data>) {
+  const [routeData] = createResource(
+    () => props.data,
+    async (data) => data instanceof Promise ? await data : data,
+    { 
+      // ✅ КРИТИЧНО: initialValue для стабильной гидрации
+      initialValue: typeof props.data === 'object' && !('then' in props.data) 
+        ? props.data 
+        : { items: [], users: [] } // Fallback структура
+    }
+  )
+  
+  return <Show when={routeData()}>{/* контент */}</Show>
+}
+
+// ✅ ПРЯМОЕ использование SSR данных (БЕЗ createResource)
+export default function Page(props: RouteSectionProps<Data>) {
+  const { setItems } = useContext()
+  
+  // ✅ Добавляем SSR данные в контекст синхронно
+  if (props.data?.items?.length) {
+    setItems(props.data.items)
+  }
+  
+  return <Component items={props.data?.items || []} />
+}
+```
+
+### 🛡️ Клиентский рендер без гидрационных мисматчей
+```typescript
+// ✅ isServer для детекта SSR
+<Show when={!isServer}>
+  <ClientOnlyComponent />
+</Show>
+```
+
+### Effects правильно
+```typescript
+// ✅ Async в onMount (клиентский)
+onMount(async () => {
+  const data = await fetchData()
+  setData(data)
+})
+
+// ✅ Циклические зависимости с defer
+createEffect(on(
+  () => feed()[props.slug],
+  (data) => { if (data) setProcessed(data) },
+  { defer: true }
+))
+```
+
+## 🔧 Быстрые исправления
+1. **`const { data } = props`** → `props.data`
+2. **JSX в пропсах** → встроить в компонент
+3. **typeof window** → `onMount()` флаг  
+4. **createResource для SSR** → прямое `props.data`
+5. **избыточный createMemo** → простые функции
+
+## 🚨 ЗОЛОТОЕ ПРАВИЛО МЕМОИЗАЦИИ
+**Если операция занимает меньше 1мс - используй простую функцию!**
+
+**🎯 createMemo только если:** циклы + фильтрация + >1мс
+
+## 💡 Мемоизация (НЕ как React)
+```typescript
+// ✅ createMemo ТОЛЬКО для дорогих операций
+const filtered = createMemo(() => 
+  items().filter(fn).sort(fn).map(fn) // Циклы!
+)
+
+// ❌ Простые операции - используй функции
+const name = () => user()?.name // Автореактивно!
+const sum = () => a() + b()
+const isActive = () => status() === 'active'
+```
+
+## 🎯 GraphQL паттерны
+```typescript
+// ✅ Кешируемые загрузчики
+export const loadData = () => createCacheableLoader(query, {}, true)
+
+// ✅ Приватные данные БЕЗ кеша
+export const loadPrivate = (client) => async () => {
+  if (!client) return undefined
+  return await client.query(query).toPromise()
+}
+```
+
+## 🚨 SolidStart роутинг (КРИТИЧНО!)
+```typescript
+// ⚠️ КРИТИЧНО: route.load ТОЛЬКО для SSR!
+export const route = {
+  load: async ({ params }) => {
+    // Выполняется ТОЛЬКО на сервере
+    // НЕ вызывается при клиентском роутинге!
+    return await loadData(params.slug)
+  }
+}
+
+// ❌ НИКОГДА не рассчитывай на route.load для клиентских переходов
+export default function Page(props: RouteSectionProps<Data>) {
+  // При клиентском роутинге props.data НЕ обновляется!
+  // Нужен createResource с отслеживанием параметров URL
+}
+
+// ✅ ПРАВИЛЬНО - createResource для клиентских переходов
+const [data] = createResource(
+  () => ({ slug: params.slug, data: props.data }), // Отслеживаем изменения slug
+  async ({ slug, data }) => {
+    // Если slug изменился - загружаем новые данные
+    if (slug && slug !== prevSlug) {
+      return await loadData(slug)
+    }
+    // Иначе используем SSR данные
+    return data instanceof Promise ? await data : data
+  }
+)
+```
+
+## 🩺 Диагностика гидрации
+**Error: Hydration Mismatch** → Ищи:
+1. **JSX в пропсах** (`header={<h2>`)
+2. **createResource без initialValue**  
+3. **typeof window проверки**
+4. **Promise в props.data без обработки**
+5. **route.load ожидание при клиентском роутинге**

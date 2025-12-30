@@ -1,0 +1,33 @@
+User-agent: *
+Allow: /
+
+# Защита от индексации служебных путей
+Disallow: /api/
+Disallow: /application
+Disallow: /*.json$
+Disallow: /*.js$
+Disallow: /*.css$
+
+# Оптимизация для изображений
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.gif$
+Allow: /*.png$
+Allow: /*.svg$
+Allow: /*.webp$
+
+# Специальные правила для основных поисковиков
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Yandexbot
+Allow: /
+Clean-param: utm_source&utm_medium&utm_campaign&utm_content&utm_term
+Crawl-delay: 1
+
+# Карта сайта
+# Sitemap: https://simbioset.ru/sitemap.xml
+
+# Host зеркало
+Host: https://simbioset.ru

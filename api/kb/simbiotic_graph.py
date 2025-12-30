@@ -1,0 +1,308 @@
+"""
+Graph-Augmented RAG: Дополнение контекста через граф симбиотических связей.
+
+Объединяет векторный поиск параграфов с графом симбиотических связей
+для более богатого контекста при генерации ответов LLM.
+"""
+
+from typing import List, Dict, Any, Optional, Set
+from api.storage.faiss import Paragraph
+from api.storage.symbiotic_service import SymbioticService
+from api.storage.organism_service import OrganismService
+from api.storage.ecosystem_service import EcosystemService
+from api.storage.db import DatabaseManagerBase
+from api.logger import root_logger
+
+log = root_logger.debug
+
+
+class SimbioticGraphContextBuilder:
+    """Строитель контекста с использованием графа симбиотических связей."""
+
+    def __init__(
+        self,
+        symbiotic_service: SymbioticService,
+        organism_service: OrganismService,
+        ecosystem_service: EcosystemService,
+    ):
+        """Инициализация строителя контекста.
+
+        Args:
+            symbiotic_service: Сервис для работы с симбиотическими связями
+            organism_service: Сервис для работы с организмами
+            ecosystem_service: Сервис для работы с экосистемами
+        """
+        self.symbiotic_service = symbiotic_service
+        self.organism_service = organism_service
+        self.ecosystem_service = ecosystem_service
+
+    def extract_organism_ids_from_paragraphs(self, paragraphs: List[Paragraph]) -> List[str]:
+        """Извлекает ID организмов из параграфов.
+
+        Ищет organism_ids в metadata параграфов или находит организмы
+        по paragraph_id в БД.
+
+        Args:
+            paragraphs: Список параграфов
+
+        Returns:
+            Список ID организмов
+        """
+        organism_ids: Set[str] = set()
+
+        for para in paragraphs:
+            # Пытаемся извлечь из metadata
+            if para.metadata and "organism_ids" in para.metadata:
+                ids = para.metadata["organism_ids"]
+                if isinstance(ids, list):
+                    organism_ids.update(ids)
+
+            # Если нет в metadata, ищем в БД по paragraph_id
+            if para.id:
+                cursor = self.organism_service.db_manager.connection.cursor()
+                cursor.execute("SELECT id FROM organisms WHERE paragraph_id = ?", (para.id,))
+                rows = cursor.fetchall()
+                for row in rows:
+                    organism_ids.add(row[0])
+
+        return list(organism_ids)
+
+    def get_organism_name(self, organism_id: str) -> str:
+        """Получает название организма по ID.
+
+        Args:
+            organism_id: ID организма
+
+        Returns:
+            Название организма или ID, если не найден
+        """
+        cursor = self.organism_service.db_manager.connection.cursor()
+        cursor.execute("SELECT name FROM organisms WHERE id = ?", (organism_id,))
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        return organism_id
+
+    def expand_via_graph(
+        self,
+        organism_ids: List[str],
+        max_depth: int = 2,
+        max_relationships: int = 10,
+    ) -> Dict[str, Any]:
+        """Расширяет контекст через граф симбиотических связей.
+
+        Args:
+            organism_ids: Список ID организмов для расширения
+            max_depth: Максимальная глубина обхода графа
+            max_relationships: Максимальное количество связей для возврата
+
+        Returns:
+            Словарь с расширенным контекстом:
+            {
+                "related_organisms": [...],
+                "relationships": [...],
+                "ecosystems": [...]
+            }
+        """
+        if not organism_ids:
+            return {"related_organisms": [], "relationships": [], "ecosystems": []}
+
+        visited_organisms: Set[str] = set(organism_ids)
+        relationships: List[Dict[str, Any]] = []
+        related_organism_ids: Set[str] = set()
+
+        def traverse(organism_id: str, depth: int):
+            """Рекурсивно обходит граф симбиотических связей."""
+            if depth > max_depth or organism_id in visited_organisms:
+                return
+
+            visited_organisms.add(organism_id)
+
+            # Получаем связи для организма
+            org_relationships = self.symbiotic_service.get_relationships_for_organism(organism_id)
+
+            for rel in org_relationships[:max_relationships]:
+                # Определяем связанный организм
+                other_org_id = rel["organism2_id"] if rel["organism1_id"] == organism_id else rel["organism1_id"]
+
+                # Добавляем связь
+                relationships.append(rel)
+                related_organism_ids.add(other_org_id)
+
+                # Продолжаем обход, если не достигли максимальной глубины
+                if depth < max_depth:
+                    traverse(other_org_id, depth + 1)
+
+        # Начинаем обход с каждого организма
+        for org_id in organism_ids:
+            traverse(org_id, 0)
+
+        # Получаем информацию об экосистемах
+        ecosystems: List[Dict[str, Any]] = []
+        ecosystem_ids: Set[str] = set()
+
+        for rel in relationships:
+            if rel.get("ecosystem_id"):
+                ecosystem_ids.add(rel["ecosystem_id"])
+
+        for eco_id in ecosystem_ids:
+            ecosystem = self.ecosystem_service.get_ecosystem(eco_id)
+            if ecosystem:
+                ecosystems.append(ecosystem)
+
+        return {
+            "related_organisms": list(related_organism_ids),
+            "relationships": relationships[:max_relationships],
+            "ecosystems": ecosystems,
+        }
+
+    def format_graph_context(
+        self,
+        graph_context: Dict[str, Any],
+        max_relationships: int = 10,
+    ) -> str:
+        """Форматирует графовый контекст для включения в промпт LLM.
+
+        Args:
+            graph_context: Результат expand_via_graph
+            max_relationships: Максимальное количество связей для форматирования
+
+        Returns:
+            Отформатированная строка с графовым контекстом
+        """
+        parts = []
+
+        relationships = graph_context.get("relationships", [])[:max_relationships]
+        if relationships:
+            parts.append("### Симбиотические связи:")
+            for rel in relationships:
+                org1_id = rel.get("organism1_id", "")
+                org2_id = rel.get("organism2_id", "")
+                rel_type = rel.get("relationship_type", "unknown")
+                level = rel.get("level", "inter_organism")
+                description = rel.get("description", "")
+
+                org1_name = self.get_organism_name(org1_id)
+                org2_name = self.get_organism_name(org2_id)
+
+                rel_str = f"- {org1_name} --[{rel_type}]--> {org2_name}"
+                if level:
+                    rel_str += f" (уровень: {level})"
+                if description:
+                    rel_str += f"\n  Описание: {description[:200]}"
+
+                parts.append(rel_str)
+
+        ecosystems = graph_context.get("ecosystems", [])
+        if ecosystems:
+            parts.append("\n### Экосистемы:")
+            for eco in ecosystems[:5]:
+                name = eco.get("name", "")
+                description = eco.get("description", "")
+                scale = eco.get("scale", "")
+                eco_str = f"- {name}"
+                if scale:
+                    eco_str += f" [масштаб: {scale}]"
+                if description:
+                    eco_str += f"\n  {description[:200]}"
+                parts.append(eco_str)
+
+        return "\n".join(parts) if parts else ""
+
+    async def build_graph_augmented_context(
+        self,
+        paragraphs: List[Paragraph],
+        max_depth: int = 2,
+        max_relationships: int = 10,
+    ) -> str:
+        """Строит контекст, объединяя векторный поиск и граф симбиотических связей.
+
+        Args:
+            paragraphs: Найденные параграфы из векторного поиска
+            max_depth: Максимальная глубина обхода графа
+            max_relationships: Максимальное количество связей
+
+        Returns:
+            Объединенный контекст для LLM
+        """
+        if not paragraphs:
+            return ""
+
+        # Извлекаем организмы из параграфов
+        organism_ids = self.extract_organism_ids_from_paragraphs(paragraphs)
+
+        if not organism_ids:
+            log("ℹ️ Не найдено организмов в параграфах для расширения через граф")
+            return ""
+
+        log(f"🔍 Найдено {len(organism_ids)} организмов в параграфах, расширяю через граф...")
+
+        # Расширяем через граф
+        graph_context = self.expand_via_graph(organism_ids, max_depth=max_depth, max_relationships=max_relationships)
+
+        if not graph_context.get("relationships"):
+            log("ℹ️ Не найдено симбиотических связей для расширения контекста")
+            return ""
+
+        # Форматируем графовый контекст
+        formatted = self.format_graph_context(graph_context, max_relationships=max_relationships)
+
+        log(f"✅ Расширен контекст через граф: {len(graph_context.get('relationships', []))} связей")
+
+        return formatted
+
+    def find_paragraphs_by_organisms(
+        self,
+        organism_ids: List[str],
+        document_id: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Находит параграфы, связанные с организмами.
+
+        Args:
+            organism_ids: Список ID организмов
+            document_id: ID документа для фильтрации (опционально)
+            limit: Максимальное количество результатов
+
+        Returns:
+            Список словарей с информацией о параграфах
+        """
+        if not organism_ids:
+            return []
+
+        cursor = self.organism_service.db_manager.connection.cursor()
+
+        # Строим запрос для поиска параграфов
+        placeholders = ",".join(["?"] * len(organism_ids))
+        query = f"""
+            SELECT DISTINCT p.id, p.content, p.node_id, p.document_id, p.timestamp
+            FROM paragraphs p
+            INNER JOIN organisms o ON o.paragraph_id = p.id
+            WHERE o.id IN ({placeholders})
+        """
+
+        params = list(organism_ids)
+
+        if document_id:
+            query += " AND p.document_id = ?"
+            params.append(document_id)
+
+        query += " ORDER BY p.timestamp DESC LIMIT ?"
+        params.append(str(limit))
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        results = []
+        for row in rows:
+            results.append(
+                {
+                    "id": row[0],
+                    "content": row[1][:500],  # Ограничиваем длину
+                    "node_id": row[2],
+                    "document_id": row[3],
+                    "timestamp": row[4],
+                }
+            )
+
+        return results

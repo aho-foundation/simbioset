@@ -1,0 +1,80 @@
+
+.detectorSection {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    margin-bottom: 1rem;
+  }
+  
+  .detectorTitle {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .detectorButtons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  
+  .detectorBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: white;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .detectorBtn:hover:not(:disabled) {
+    background: #f1f5f9;
+    border-color: rgba(0, 0, 0, 0.2);
+    color: #475569;
+    transform: translateY(-1px);
+  }
+  
+  .detectorBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .detectorBtn.error {
+    animation: errorShake 0.5s ease-in-out;
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #dc2626;
+  }
+
+  .detectorBtn.error svg {
+    animation: errorPulse 0.5s ease-in-out;
+  }
+  
+  .detectorBtn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+@keyframes errorShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+@keyframes errorPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+  }
+  

@@ -1,0 +1,159 @@
+"""Web search module for retrieving context from the internet."""
+
+from typing import List, Dict, Any
+from ddgs import DDGS
+from crawl4ai import AsyncWebCrawler
+import logging
+import asyncio
+import aiohttp
+
+logger = logging.getLogger(__name__)
+
+
+class WebSearchService:
+    """Service for performing web searches and extracting content."""
+
+    def __init__(self):
+        """Initialize the web search service."""
+        self.crawler = AsyncWebCrawler()
+        self._session: aiohttp.ClientSession | None = None
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create aiohttp session for URL validation."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=5), connector=aiohttp.TCPConnector(limit=10)
+            )
+        return self._session
+
+    async def _is_url_accessible(self, url: str) -> bool:
+        """
+        Check if URL is accessible (not dead).
+
+        Args:
+            url: URL to check
+
+        Returns:
+            True if URL is accessible, False otherwise
+        """
+        try:
+            session = await self._get_session()
+            async with session.head(url, allow_redirects=True) as response:
+                # Проверяем, что статус код успешный (2xx или 3xx)
+                return 200 <= response.status < 400
+        except (aiohttp.ClientError, asyncio.TimeoutError, Exception) as e:
+            logger.debug(f"URL {url} is not accessible: {str(e)}")
+            return False
+
+    async def search_and_extract(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+        """
+        Search the web and extract content from results.
+
+        Args:
+            query: Search query
+            max_results: Maximum number of results to return
+
+        Returns:
+            List of dictionaries containing search results with extracted content
+        """
+        try:
+            # Perform DuckDuckGo search to get URLs
+            # Запрашиваем больше результатов, чтобы после фильтрации мертвых ссылок осталось достаточно
+            ddgs_results = DDGS().text(query, max_results=max_results * 3)
+
+            results = []
+
+            # Extract content from each URL using crawl4ai
+            for result in ddgs_results:
+                try:
+                    url = result.get("href") or result.get("link")
+                    if not url:
+                        continue
+
+                    # Проверяем доступность URL перед обработкой
+                    if not await self._is_url_accessible(url):
+                        logger.debug(f"Skipping dead link: {url}")
+                        continue
+
+                    # Crawl the webpage
+                    crawl_result = await self.crawler.arun(url=url, bypass_cache=True, verbose=False)
+
+                    if crawl_result and crawl_result.success:
+                        # Extract main content from the crawled page
+                        extracted_content = crawl_result.extracted_content
+
+                        results.append(
+                            {
+                                "title": result.get("title", ""),
+                                "url": url,
+                                "content": extracted_content,
+                                "description": result.get("body", "")[:500],  # First 500 chars as description
+                            }
+                        )
+
+                        if len(results) >= max_results:
+                            break
+                    else:
+                        # Если crawl не удался, но URL доступен, используем описание из поиска
+                        # Но только если URL действительно доступен (уже проверили выше)
+                        results.append(
+                            {
+                                "title": result.get("title", ""),
+                                "url": url,
+                                "content": result.get("body", ""),
+                                "description": result.get("body", "")[:500],
+                            }
+                        )
+
+                        if len(results) >= max_results:
+                            break
+
+                except Exception as e:
+                    logger.warning(f"Failed to process {url}: {str(e)}")
+                    # Не добавляем результат, если произошла ошибка
+                    continue
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Web search failed: {str(e)}")
+            return []
+
+    async def get_symbiosis_context(self, query: str = "symbiosis ecological relationships") -> str:
+        """
+        Get context specifically about symbiosis for the chatbot.
+
+        Args:
+            query: Search query (default is about symbiosis)
+
+        Returns:
+            Formatted context string about symbiosis
+        """
+        results = await self.search_and_extract(query, max_results=3)
+
+        if not results:
+            return ""
+
+        context_parts = []
+        context_parts.append("### Из веб-поиска:")
+
+        for i, result in enumerate(results, 1):
+            title = result.get("title", "Без названия")
+            content = result.get("content", "")[:1000]  # First 1000 chars
+            url = result.get("url", "")
+
+            # Компактный формат: название как ссылка, затем содержание
+            context_parts.append(f"[{title}]({url})")
+            context_parts.append(f"{content}")
+            context_parts.append("")
+
+        return "\n".join(context_parts)
+
+    async def close(self):
+        """Close aiohttp session."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+
+
+# Global instance
+web_search_service = WebSearchService()

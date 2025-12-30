@@ -1,0 +1,81 @@
+---
+description: CSS Modules паттерны для webapp
+globs: webapp/src/**/*.{scss,css}
+alwaysApply: true
+---
+
+# 🎨 CSS Modules (Быстро)
+
+## ✅ Правильно
+```scss
+// Component.module.scss
+.localClass {
+  color: red;
+  @extend .baseClass; // DRY
+}
+```
+
+```typescript
+// Component.tsx
+import styles from './Component.module.scss'
+export const Component = () => (
+  <div class={styles.localClass}>Content</div>
+)
+```
+
+## 🚫 Избегай
+```typescript
+// ❌ НЕ inline стили
+<div style="color: red;">Bad</div>
+
+// ❌ НЕ глобальные без нужды
+:global(.some-class) { /* избегай */ }
+```
+
+## 🔧 Структура
+```
+src/components/Button/
+├── Button.tsx
+├── Button.module.scss
+└── index.ts
+```
+
+## 📱 Responsive Design
+```scss
+// Mobile-first подход
+.component {
+  padding: 1rem;
+
+  @media (min-width: 768px) {
+    padding: 2rem;
+  }
+
+  @media (min-width: 1024px) {
+    padding: 3rem;
+  }
+}
+```
+
+## 🎯 Performance
+- **CSS Modules**: Автоматическое минифицирование
+- **Critical CSS**: Инлайн критических стилей
+- **Lazy Loading**: Загрузка стилей по требованию
+- **Tree Shaking**: Удаление неиспользуемых стилей
+
+## 🔧 Variables & Mixins
+```scss
+// variables.scss
+:root {
+  --primary-color: #007bff;
+  --spacing-unit: 1rem;
+  --border-radius: 4px;
+}
+
+// mixins.scss
+@mixin button-base {
+  padding: var(--spacing-unit);
+  border-radius: var(--border-radius);
+  border: none;
+  cursor: pointer;
+}
+```

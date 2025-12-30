@@ -1,0 +1,15 @@
+.layout {
+  display: flex;
+  flex-direction: row;
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+}
+
+.mainContent {
+  flex: 1;
+  padding: 2rem;
+  min-height: 100vh;
+  background: var(--bg-primary);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}

@@ -1,0 +1,421 @@
+.knowledgeTreePage {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  min-height: 100vh;
+}
+
+.viewToggle {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.toggleButton {
+  padding: 0.5rem 1rem;
+  background-color: var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all 0.2s;
+ font-size: 0.9rem;
+}
+
+.toggleButton:hover {
+ background-color: var(--hover-bg);
+}
+
+.toggleButton.activeToggle {
+  background-color: var(--primary-color);
+ color: white;
+ border-color: var(--primary-color);
+}
+
+.threeDContainer {
+  width: 100%;
+  height: 70vh;
+  background-color: var(--card-bg);
+  border-radius: var(--border-radius);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--primary-color);
+}
+
+.featureIcon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.title {
+  font-size: 2.5rem;
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.subtitle {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.loading, .error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 0;
+  flex: 1;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.errorMessage {
+  color: var(--error-color);
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.retryButton {
+  padding: 0.75rem 1.5rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+
+.retryButton:hover {
+  background-color: var(--primary-dark);
+
+.empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.empty p {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  max-width: 600px;
+}
+}
+
+.treeContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  flex: 1;
+}
+
+@media (min-width: 768px) {
+  .treeContainer {
+    flex-direction: row;
+  }
+}
+
+.infoPanel {
+  flex: 1;
+  max-width: 350px;
+  background-color: var(--card-bg);
+  padding: 1.5rem;
+  border-radius: var(--border-radius);
+  box-shadow: var(--card-shadow);
+}
+
+.instructions {
+  list-style-type: none;
+  padding-left: 0;
+  margin: 1rem 0;
+}
+
+.instructions li {
+  margin-bottom: 0.75rem;
+  padding-left: 1.25rem;
+  position: relative;
+}
+
+.instructions li::before {
+  content: "•";
+  color: var(--primary-color);
+  position: absolute;
+  left: 0;
+}
+
+.stats {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.stats h4 {
+  color: var(--primary-color);
+  margin-bottom: 0.75rem;
+}
+
+.stats p {
+  margin: 0.25rem 0;
+  color: var(--text-secondary);
+}
+
+.treeWrapper {
+  flex: 3;
+  background-color: var(--card-bg);
+  padding: 1.5rem;
+  border-radius: var(--border-radius);
+  box-shadow: var(--card-shadow);
+  overflow: auto;
+  max-height: calc(100vh - 200px);
+}
+
+/* Tree node styles */
+.treeNode {
+  margin-bottom: 0.5rem;
+}
+
+.treeNodeHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: var(--border-radius);
+  transition: background-color 0.2s;
+}
+
+.treeNodeHeader:hover {
+  background-color: var(--hover-bg);
+}
+
+.selectedNode {
+  background-color: var(--selected-bg);
+  border-left: 3px solid var(--primary-color);
+}
+
+.expandButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.expandButton:hover {
+  background-color: var(--border-color);
+}
+
+.nodeCheckbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.message {
+  flex: 1;
+  cursor: pointer;
+}
+
+.messageContent {
+  padding: 0.75rem;
+  border-radius: var(--border-radius);
+  background-color: var(--message-bg);
+}
+
+.userMessage {
+  background-color: var(--user-message-bg);
+  margin-left: auto;
+  border-top-right-radius: 0;
+}
+
+.botMessage {
+  background-color: var(--bot-message-bg);
+  border-top-left-radius: 0;
+}
+
+.messageContent p {
+  margin: 0;
+  font-size: 0.95rem;
+  word-break: break-word;
+}
+
+.timestamp {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  display: block;
+  margin-top: 0.25rem;
+  text-align: right;
+}
+
+.treeChildren {
+  margin-left: 20px;
+  border-left: 1px dashed var(--border-color);
+  padding-left: 10px;
+}
+
+/* Response input area */
+.responseInput {
+  margin-top: 2rem;
+  background-color: var(--card-bg);
+  padding: 1.5rem;
+  border-radius: var(--border-radius);
+  box-shadow: var(--card-shadow);
+}
+
+.selectedNodePreview {
+  background-color: var(--selected-bg);
+  padding: 0.75rem;
+  border-radius: var(--border-radius);
+  margin: 0.5rem 0;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.inputArea {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.input {
+  flex: 1;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.sendButton {
+  align-self: flex-end;
+  padding: 0.75rem 1.5rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+
+.sendButton:hover {
+  background-color: var(--primary-dark);
+}
+
+.startConversation {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Empty tree state */
+.emptyTree {
+  text-align: center;
+  padding: 4rem 0;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+/* Tree header */
+.treeHeader {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.treeHeader h2 {
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}
+
+.treeHeader p {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Tree view container */
+.treeView {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+  background-color: var(--background);
+  border-radius: var(--border-radius);
+}
+
+/* ConversationsNav specific styles */
+.threeDContainer {
+  width: 100%;
+  height: 70vh;
+  background-color: var(--card-bg);
+  border-radius: var(--border-radius);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+  position: relative;
+}
+
+.viewToggle {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.toggleButton {
+  padding: 0.5rem 1rem;
+  background-color: var(--border-color);
+ border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+}
+
+.toggleButton:hover {
+ background-color: var(--hover-bg);
+}
+
+.toggleButton.activeToggle {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
