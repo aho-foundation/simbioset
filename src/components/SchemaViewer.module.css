@@ -2,46 +2,184 @@
   width: 100%;
 }
 
-.storageInfo {
+.infographics {
   margin-bottom: 1.5rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.dataFlow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.storageNode {
+  text-align: center;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 2px solid #e2e8f0;
+  min-width: 200px;
+}
+
+.storageIcon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.storageTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.5rem;
+}
+
+.collectionBadge {
+  display: inline-block;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.statsContainer {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.statCard {
+  background: white;
   padding: 1rem;
-  background: #f8fafc;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  min-width: 80px;
+  border: 1px solid #e2e8f0;
+}
+
+.statNumber {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+}
+
+.statLabel {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.statIcon {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.autoschemaActive {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-color: #86efac;
+}
+
+.autoschemaActive .statIcon {
+  color: #16a34a;
+}
+
+.autoschemaInactive {
+  background: linear-gradient(135deg, #fef3f2 0%, #fee2e2 100%);
+  border-color: #fca5a5;
+}
+
+.autoschemaInactive .statIcon {
+  color: #dc2626;
+}
+
+.dataTypesVisualization {
+  width: 100%;
+  background: white;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.vizTitle {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+  text-align: center;
+}
+
+.typeBars {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.infoRow {
+.typeBar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  gap: 1rem;
 }
 
-.infoRow:last-child {
-  border-bottom: none;
+.typeInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 200px;
 }
 
-.infoLabel {
+.typeIcon {
+  font-size: 1.25rem;
+  min-width: 1.5rem;
+}
+
+.typeName {
+  flex: 1;
   font-weight: 500;
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
-.infoValue {
-  font-weight: 600;
   color: #374151;
   font-size: 0.875rem;
 }
 
-.infoValue.enabled {
-  color: #10b981;
+.typeCount {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  min-width: 2rem;
+  text-align: center;
 }
 
-.infoValue.disabled {
-  color: #ef4444;
+.progressBar {
+  flex: 1;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #10b981 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
 }
 
 .message {

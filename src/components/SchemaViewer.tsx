@@ -71,41 +71,87 @@ const SchemaViewer: Component = () => {
         <Show when={schema()}>
           {(schemaInfo) => (
             <>
-              {/* Информация о типе хранилища */}
-              <div class={styles.storageInfo}>
-                <div class={styles.infoRow}>
-                  <span class={styles.infoLabel}>Тип хранилища:</span>
-                  <span class={styles.infoValue}>
-                    {schemaInfo().storage_type === 'weaviate' ? '🗄️ Weaviate' : '💾 FAISS'}
-                  </span>
+              {/* Инфографика структуры данных */}
+              <div class={styles.infographics}>
+                <div class={styles.dataFlow}>
+                  {/* Центральный узел - хранилище */}
+                  <div class={styles.storageNode}>
+                    <div class={styles.storageIcon}>
+                      {schemaInfo().storage_type === 'weaviate' ? '🗄️' : '💾'}
+                    </div>
+                    <div class={styles.storageTitle}>
+                      {schemaInfo().storage_type === 'weaviate' ? 'Weaviate' : 'FAISS'}
+                    </div>
+                    <Show when={schemaInfo().collection_name}>
+                      <div class={styles.collectionBadge}>
+                        {schemaInfo().collection_name}
+                      </div>
+                    </Show>
+                  </div>
+
+                  {/* Статистика */}
+                  <div class={styles.statsContainer}>
+                    <div class={styles.statCard}>
+                      <div class={styles.statNumber}>
+                        {schemaInfo().total_properties || 0}
+                      </div>
+                      <div class={styles.statLabel}>свойств</div>
+                    </div>
+
+                    <div class={styles.statCard}>
+                      <div class={styles.statNumber}>
+                        {Object.keys(propertiesByType()).length}
+                      </div>
+                      <div class={styles.statLabel}>типов</div>
+                    </div>
+
+                    <Show when={schemaInfo().autoschema_enabled !== undefined}>
+                      <div class={`${styles.statCard} ${schemaInfo().autoschema_enabled ? styles.autoschemaActive : styles.autoschemaInactive}`}>
+                        <div class={styles.statIcon}>
+                          {schemaInfo().autoschema_enabled ? '🤖' : '⚙️'}
+                        </div>
+                        <div class={styles.statLabel}>
+                          {schemaInfo().autoschema_enabled ? 'AutoSchema' : 'Ручная схема'}
+                        </div>
+                      </div>
+                    </Show>
+                  </div>
+
+                  {/* Визуализация типов данных */}
+                  <Show when={schemaInfo().properties && schemaInfo().properties.length > 0}>
+                    <div class={styles.dataTypesVisualization}>
+                      <h4 class={styles.vizTitle}>Распределение типов данных</h4>
+                      <div class={styles.typeBars}>
+                        <For each={Object.entries(propertiesByType())}>
+                          {([type, props]) => {
+                            const percentage = (props.length / (schemaInfo().total_properties || 1)) * 100
+                            return (
+                              <div class={styles.typeBar}>
+                                <div class={styles.typeInfo}>
+                                  <span class={styles.typeIcon}>
+                                    {typeDisplayName(type).split(' ')[0]}
+                                  </span>
+                                  <span class={styles.typeName}>
+                                    {typeDisplayName(type).split(' ').slice(1).join(' ')}
+                                  </span>
+                                  <span class={styles.typeCount}>
+                                    {props.length}
+                                  </span>
+                                </div>
+                                <div class={styles.progressBar}>
+                                  <div
+                                    class={styles.progressFill}
+                                    style={{ width: `${percentage}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            )
+                          }}
+                        </For>
+                      </div>
+                    </div>
+                  </Show>
                 </div>
-
-                <Show when={schemaInfo().collection_name}>
-                  <div class={styles.infoRow}>
-                    <span class={styles.infoLabel}>Коллекция:</span>
-                    <span class={styles.infoValue}>{schemaInfo().collection_name}</span>
-                  </div>
-                </Show>
-
-                <Show when={schemaInfo().autoschema_enabled !== undefined}>
-                  <div class={styles.infoRow}>
-                    <span class={styles.infoLabel}>AutoSchema:</span>
-                    <span
-                      class={`${styles.infoValue} ${
-                        schemaInfo().autoschema_enabled ? styles.enabled : styles.disabled
-                      }`}
-                    >
-                      {schemaInfo().autoschema_enabled ? '✅ Включен' : '❌ Выключен'}
-                    </span>
-                  </div>
-                </Show>
-
-                <Show when={schemaInfo().total_properties !== undefined}>
-                  <div class={styles.infoRow}>
-                    <span class={styles.infoLabel}>Всего свойств:</span>
-                    <span class={styles.infoValue}>{schemaInfo().total_properties}</span>
-                  </div>
-                </Show>
               </div>
 
               {/* Сообщение для FAISS */}

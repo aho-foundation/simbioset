@@ -114,7 +114,9 @@ async def get_schema(request: Request):
             )
 
         # Проверяем, используем ли Weaviate
-        is_weaviate = hasattr(storage, "client") and hasattr(storage.client, "collections")
+        from api.storage.weaviate_storage import WeaviateStorage
+
+        is_weaviate = isinstance(storage, WeaviateStorage)
 
         if is_weaviate:
             try:
