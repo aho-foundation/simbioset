@@ -39,7 +39,7 @@ RUN if [ -d "/app/.cache/venv" ] && [ -f "/app/.cache/venv/bin/activate" ]; then
     else \
         echo "📦 Installing packages via pip..." && \
         . /opt/venv/bin/activate && \
-        uv pip install --cache-dir=/app/.cache/pip --no-cache-dir --index-url http://151.101.1.63/simple --trusted-host 151.101.1.63 --retries 50 --timeout 300 -r requirements.txt && \
+        uv pip install --cache-dir=/app/.cache/pip --no-cache-dir --index-url http://151.101.1.63/simple --allow-insecure-host 151.101.1.63 -r requirements.txt && \
         echo "✅ Fresh venv created in /opt/venv"; \
     fi
 
