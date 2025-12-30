@@ -223,6 +223,14 @@ async def lifespan(app: FastAPI):
     if hasattr(app.state, "db_manager") and app.state.db_manager.connection:
         app.state.db_manager.disconnect()
 
+    # Close Weaviate client if it exists
+    if hasattr(app.state, "storage") and hasattr(app.state.storage, "close"):
+        try:
+            app.state.storage.close()
+            log("✅ Weaviate клиент закрыт")
+        except Exception as e:
+            log(f"⚠️ Ошибка при закрытии Weaviate клиента: {e}")
+
     log("✅ Simbioset API shut down successfully")
 
 

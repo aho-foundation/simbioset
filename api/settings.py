@@ -87,7 +87,7 @@ LLM_PROXY_TOKEN = os.getenv("LLM_PROXY_TOKEN", "")
 
 # Weaviate Vector Database
 # HTTP URL для REST API операций (схема, управление)
-WEAVIATE_URL = os.getenv("WEAVIATE_URL")
+WEAVIATE_URL = os.getenv("WEAVIATE_URL", "http://weaviate:8080")
 # gRPC URL для векторных операций (поиск, вставка) - основной протокол
 WEAVIATE_GRPC_URL = os.getenv("WEAVIATE_GRPC_URL")  # Если не задан, будет вычислен из HTTP URL
 WEAVIATE_API_KEY = os.getenv("WEAVIATE_API_KEY", None)  # Optional, если используется аутентификация

@@ -33,6 +33,12 @@
   display: block;
 }
 
+.storageIcon svg {
+  width: 3rem;
+  height: 3rem;
+  color: #1e293b;
+}
+
 .storageTitle {
   font-size: 1.25rem;
   font-weight: 700;
@@ -88,6 +94,11 @@
   font-size: 1.5rem;
   margin-bottom: 0.25rem;
   display: block;
+}
+
+.statIcon svg {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .autoschemaActive {
@@ -147,6 +158,15 @@
 .typeIcon {
   font-size: 1.25rem;
   min-width: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.typeIcon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #64748b;
 }
 
 .typeName {
@@ -214,6 +234,16 @@
   font-size: 1.125rem;
   font-weight: 600;
   color: #374151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.sectionTitle svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  color: #f59e0b;
 }
 
 .autoschemaNote {
@@ -244,6 +274,15 @@
   font-size: 1rem;
   font-weight: 600;
   color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.typeTitle svg {
+  width: 1rem;
+  height: 1rem;
+  color: #6b7280;
 }
 
 .propertiesList {
@@ -283,6 +322,15 @@
   font-size: 0.75rem;
   color: #6b7280;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.propertyType svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
 }
 
 .propertyDescription {

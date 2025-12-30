@@ -10,6 +10,7 @@ from sentence_transformers import SentenceTransformer
 from datetime import datetime
 import weaviate
 from weaviate.classes.query import Filter, MetadataQuery, HybridFusion
+from weaviate.config import Timeout
 import asyncio
 from functools import lru_cache
 
@@ -73,29 +74,120 @@ class WeaviateStorage:
             log("❌ WEAVIATE_URL не задан, невозможно подключиться к Weaviate")
             raise ValueError("WEAVIATE_URL is required for Weaviate connection")
 
+        # Генерируем список возможных хостов для Dokku/Docker среды
         url_parts = weaviate_url.replace("http://", "").replace("https://", "").split(":")
-        http_host = url_parts[0] if url_parts else "localhost"
+        base_host = url_parts[0] if url_parts else "localhost"
         http_port = int(url_parts[1]) if len(url_parts) > 1 else 8080
         http_secure = weaviate_url.startswith("https://")
 
+        # Возможные варианты DNS имен для Dokku
+        possible_hosts = []
+        if base_host != "localhost":
+            # Разбираем base_host на компоненты
+            host_parts = base_host.split(".")
+            if len(host_parts) >= 2:
+                service_name = host_parts[0]  # 'weaviate'
+                app_name = host_parts[1] if len(host_parts) > 1 else None  # 'web'
+
+                # Генерируем варианты
+                possible_hosts.extend(
+                    [
+                        base_host,  # weaviate.web.1
+                        f"{service_name}.{app_name}",  # weaviate.web
+                        service_name,  # weaviate
+                        f"{service_name}.web.1",  # weaviate.web.1 (уже есть)
+                    ]
+                )
+            else:
+                possible_hosts.append(base_host)
+
+        # Добавляем localhost как fallback
+        if "localhost" not in possible_hosts:
+            possible_hosts.append("localhost")
+
+        # Убираем дубликаты
+        possible_hosts = list(set(possible_hosts))
+        log(f"🔍 Проверяем возможные хосты Weaviate: {possible_hosts}")
+
         # Парсим gRPC URL или вычисляем из HTTP URL
         weaviate_grpc_url = WEAVIATE_GRPC_URL
-        if not weaviate_grpc_url:
-            # Вычисляем gRPC URL из HTTP URL (предполагаем стандартные порты)
-            # Для Weaviate стандартный HTTP порт 8080, gRPC 50051
-            grpc_host = http_host
-            grpc_port = 50051 if http_port == 8080 else http_port + 1  # 8080 -> 50051, иначе +1
-            weaviate_grpc_url = f"{grpc_host}:{grpc_port}"
-            log(f"🔧 WEAVIATE_GRPC_URL не задан, вычисляем из HTTP: {weaviate_grpc_url}")
 
-        grpc_parts = weaviate_grpc_url.split(":")
-        grpc_host = grpc_parts[0] if grpc_parts else "localhost"
-        grpc_port = int(grpc_parts[1]) if len(grpc_parts) > 1 else 50051
-        grpc_secure = False  # gRPC обычно не использует SSL во внутренней сети
+        connection_success = False
+        last_error: Optional[Exception] = None
 
-        log(
-            f"🔗 Подключение к Weaviate - HTTP: {http_host}:{http_port} (secure: {http_secure}), gRPC: {grpc_host}:{grpc_port} (secure: {grpc_secure}) [grpc вычислен из http: {not WEAVIATE_GRPC_URL}]"
-        )
+        # Пробуем подключиться к каждому возможному хосту
+        for http_host in possible_hosts:
+            try:
+                if not weaviate_grpc_url:
+                    # Вычисляем gRPC URL из HTTP URL (предполагаем стандартные порты)
+                    # Для Weaviate стандартный HTTP порт 8080, gRPC 50051
+                    grpc_host = http_host
+                    grpc_port = 50051 if http_port == 8080 else http_port + 1  # 8080 -> 50051, иначе +1
+                    weaviate_grpc_url = f"{grpc_host}:{grpc_port}"
+
+                grpc_parts = weaviate_grpc_url.split(":")
+                grpc_host = grpc_parts[0] if grpc_parts else "localhost"
+                grpc_port = int(grpc_parts[1]) if len(grpc_parts) > 1 else 50051
+                grpc_secure = False  # gRPC обычно не использует SSL во внутренней сети
+
+                log(
+                    f"🔗 Пробуем подключиться к Weaviate - HTTP: {http_host}:{http_port} (secure: {http_secure}), gRPC: {grpc_host}:{grpc_port} (secure: {grpc_secure})"
+                )
+
+                # Создаем подключение с приоритетом gRPC для векторных операций
+                connection_params = weaviate.connect.base.ConnectionParams.from_params(
+                    http_host=http_host,
+                    http_port=http_port,
+                    http_secure=http_secure,
+                    grpc_host=grpc_host,
+                    grpc_port=grpc_port,
+                    grpc_secure=grpc_secure,
+                )
+
+                # Настраиваем таймауты согласно best practices
+                timeout_config = Timeout(
+                    init=10,  # таймаут инициализации клиента (был 30 сек в main.py)
+                    query=30,  # таймаут для запросов
+                    insert=60,  # таймаут для вставки (batch операции могут быть долгими)
+                )
+
+                # Если gRPC предпочтителен, настраиваем клиент для использования gRPC по умолчанию
+                client_kwargs = {
+                    "connection_params": connection_params,
+                    "auth_client_secret": auth_config,
+                    "timeout_config": timeout_config,
+                }
+
+                self.client = weaviate.WeaviateClient(**client_kwargs)  # type: ignore[arg-type]
+
+                # Проверяем подключение
+                log("🔌 Вызываем client.connect()...")
+                self.client.connect()
+                log("✅ client.connect() успешен")
+
+                connection_success = True
+                log(f"✅ Подключено к Weaviate на {http_host}:{http_port}")
+                break
+
+            except weaviate.exceptions.WeaviateConnectionError as e:
+                last_error = e
+                log(f"❌ Ошибка подключения к Weaviate {http_host}:{http_port} - {e}")
+                continue
+            except weaviate.exceptions.WeaviateBaseError as e:
+                last_error = e
+                log(f"❌ Ошибка Weaviate клиента для {http_host}:{http_port} - {e}")
+                continue
+            except Exception as e:
+                last_error = e
+                log(f"❌ Непредвиденная ошибка подключения к {http_host}:{http_port} - {e}")
+                continue
+
+        if not connection_success:
+            log(f"💥 Все варианты подключения к Weaviate провалились. Последняя ошибка: {last_error}")
+            if last_error:
+                raise last_error
+            else:
+                raise RuntimeError("Не удалось подключиться к Weaviate: все хосты недоступны")
 
         # Создаем подключение с приоритетом gRPC для векторных операций
         connection_params = weaviate.connect.base.ConnectionParams.from_params(
@@ -151,6 +243,35 @@ class WeaviateStorage:
         self._embedding_cache_enabled = WEAVIATE_EMBEDDING_CACHE_SIZE > 0
         if self._embedding_cache_enabled:
             log(f"💾 Кеширование эмбеддингов включено (размер: {WEAVIATE_EMBEDDING_CACHE_SIZE})")
+
+    def close(self) -> None:
+        """
+        Правильно закрывает соединение с Weaviate согласно best practices.
+
+        Следует вызывать при завершении работы приложения.
+        """
+        if hasattr(self, "client") and self.client:
+            try:
+                log("🔌 Закрываем соединение с Weaviate...")
+                self.client.close()
+                log("✅ Соединение с Weaviate закрыто")
+            except Exception as e:
+                log(f"⚠️ Ошибка при закрытии соединения с Weaviate: {e}")
+
+    def __enter__(self):
+        """Контекстный менеджер - вход"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Контекстный менеджер - выход с автоматическим закрытием"""
+        self.close()
+
+    def __del__(self):
+        """Деструктор - финальная попытка закрыть соединение"""
+        try:
+            self.close()
+        except BaseException:
+            pass  # Игнорируем ошибки в деструкторе
 
     def _create_paragraph_id(
         self,
