@@ -334,6 +334,9 @@
   /* Предотвращение layout shift при переключении на редактор */
   min-height: fit-content;
   box-sizing: border-box;
+  /* Стабильная высота независимо от видимости кнопок */
+  display: flex;
+  flex-direction: column;
 }
 
 .messageActions {
@@ -345,8 +348,11 @@
   margin-top: 0.375rem;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
   opacity: 0;
+  visibility: hidden;
   transition: all 0.2s ease;
   flex-wrap: wrap;
+  /* Предотвращение layout shift - кнопки всегда занимают место */
+  min-height: 28px;
 }
 
 .messageActionsLeft {
@@ -365,6 +371,7 @@
 
 .conceptBubble:hover .messageActions {
   opacity: 1;
+  visibility: visible;
 }
 
 .copyMessageButton {
@@ -444,6 +451,10 @@
   position: relative;
   /* Сохранение тех же отступов, что и у conceptContent */
   box-sizing: border-box;
+  /* Занимает всю высоту как conceptContent */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .editToolbar {
@@ -514,6 +525,8 @@
   overflow-y: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
+  /* Занимает доступное пространство */
+  flex: 1;
 }
 
 .editContentEditable:focus {
@@ -595,6 +608,8 @@
   /* Предотвращение случайного выбора текста при клике на кнопки */
   user-select: text;
   -webkit-user-select: text;
+  /* Занимает доступное пространство, предотвращая layout shift */
+  flex: 1;
 }
 
 .userConcept {
