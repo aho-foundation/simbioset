@@ -34,18 +34,54 @@ router = APIRouter(prefix="/api/chat", tags=["Chat"])
 # Функция clean_llm_response удалена для соблюдения принципа DRY
 
 
+def remove_sources_section_from_content(content: str) -> str:
+    """
+    Удаляет раздел "## Источники" из текста ответа LLM.
+
+    Это предотвращает дублирование источников - они показываются отдельно,
+    а не в тексте сообщения.
+
+    Args:
+        content: Полный текст ответа LLM
+
+    Returns:
+        Текст без раздела источников
+    """
+    # Удаляем раздел "## Источники" в разных вариантах:
+    # - ## Источники
+    # - ## Источники:
+    # - ### Источники
+    # - С переносом строки или без
+    patterns = [
+        # Заголовок с ## или ###, с двоеточием или без, и все содержимое до следующего заголовка или конца
+        r"\n?##+\s*Источники:?\s*\n.*?(?=\n?##+|\Z)",
+        # Заголовок в начале строки
+        r"^##+\s*Источники:?\s*\n.*?(?=\n?##+|\Z)",
+        # Заголовок в середине текста
+        r"\n##+\s*Источники:?\s*\n.*?(?=\n##+|\n###+|\Z)",
+    ]
+    
+    cleaned_content = content
+    for pattern in patterns:
+        cleaned_content = re.sub(pattern, "", cleaned_content, flags=re.DOTALL | re.IGNORECASE | re.MULTILINE)
+    
+    # Удаляем лишние пустые строки в конце
+    return cleaned_content.strip()
+
+
 def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
-    """Парсит источники из ответа LLM."""
     """
     Парсит источники из ответа LLM.
 
     Ищет раздел "## Источники" и извлекает пронумерованный список.
+    Фильтрует источники без валидного типа или ссылки.
 
     Args:
         response_content: Полный текст ответа LLM
 
     Returns:
         Список словарей с источниками [{'title': 'Название источника', 'type': 'Тип источника'}]
+        Только источники с валидным типом (не "Неизвестный тип")
     """
     sources: List[Dict[str, str]] = []
 
@@ -76,11 +112,15 @@ def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
         if type_match:
             title = line[: type_match.start()].strip()
             source_type = type_match.group(1).strip()
+            # Пропускаем источники с типом "Неизвестный тип"
+            if source_type.lower() in ("неизвестный тип", "unknown type", "unknown"):
+                continue
         else:
-            title = line
-            source_type = "Неизвестный тип"
+            # Если тип не указан, пропускаем источник
+            continue
 
-        if title:  # Только если есть название
+        # Добавляем только источники с валидным названием и типом
+        if title and source_type:
             sources.append({"title": title, "type": source_type})
 
     return sources
@@ -336,8 +376,11 @@ async def send_chat_message(message_data: ChatMessageCreate, request: Request, r
             # Прокси уже выполняет фильтрацию ответов, дополнительная очистка не нужна
             response_content = await call_llm_with_retry(llm_context, origin="chat_message")
 
-            # Парсим источники из ответа LLM
+            # Парсим источники из ответа LLM (до удаления раздела из текста)
             sources: List[Dict[str, str]] = parse_sources_from_response(response_content)
+
+            # Удаляем раздел источников из текста, чтобы избежать дублирования
+            response_content = remove_sources_section_from_content(response_content)
         except (LLMPermanentError, LLMTemporaryError) as e:
             # До сюда доходим только если LLM не смогла ответить даже после всех ретраев.
             # В логах оставляем детали, но в чат не отправляем никакого текста ошибки модели.

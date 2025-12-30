@@ -698,12 +698,22 @@ const InterviewPage = () => {
                       />
                       {/* Отображение источников для AI сообщений */}
                       <Show
-                        when={message.role === 'assistant' && message.sources && message.sources.length > 0}
+                        when={
+                          message.role === 'assistant' &&
+                          message.sources &&
+                          message.sources.filter(
+                            (s) => s.title && s.type && !s.type.toLowerCase().includes('неизвестный')
+                          ).length > 0
+                        }
                       >
                         <div class={styles.sourcesSection}>
                           <h5 class={styles.sourcesTitle}>Источники:</h5>
                           <ul class={styles.sourcesList}>
-                            <For each={message.sources}>
+                            <For
+                              each={message.sources.filter(
+                                (s) => s.title && s.type && !s.type.toLowerCase().includes('неизвестный')
+                              )}
+                            >
                               {(source: MessageSource) => (
                                 <li class={styles.sourceItem}>
                                   <span class={styles.sourceTitle}>{source.title}</span>

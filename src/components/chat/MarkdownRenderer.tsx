@@ -10,11 +10,34 @@ const MarkdownRenderer = (props: MarkdownRendererProps) => {
   const [htmlContent, setHtmlContent] = createSignal('')
 
   createEffect(() => {
-    const rawHtml = marked.parse(props.content, { async: false }) as string
+    // Удаляем раздел "## Источники" из markdown перед парсингом
+    // Это предотвращает дублирование источников (они показываются отдельным блоком)
+    let contentToRender = props.content
+    // Удаляем раздел источников в разных вариантах (заголовок + список)
+    // Паттерн: заголовок "## Источники" + все до следующего заголовка или конца текста
+    contentToRender = contentToRender.replace(
+      /(^|\n)##+\s*Источники:?\s*\n[\s\S]*?(?=\n##+|\n###+|\Z)/gi,
+      ''
+    )
+    // Удаляем лишние пустые строки
+    contentToRender = contentToRender.trim()
+
+    const rawHtml = marked.parse(contentToRender, { async: false }) as string
+
+    // Дополнительная очистка: удаляем заголовки "Источники" и списки из HTML (на случай если они проскочили)
+    // Удаляем заголовок "Источники" и следующий за ним список
+    const htmlWithoutSources = rawHtml.replace(
+      /<h[2-6][^>]*>.*?Источники:?.*?<\/h[2-6]>\s*<ul[^>]*>[\s\S]*?<\/ul>/gi,
+      ''
+    ).replace(
+      // Удаляем оставшиеся заголовки "Источники" без списков
+      /<h[2-6][^>]*>.*?Источники:?.*?<\/h[2-6]>/gi,
+      ''
+    )
 
     // Добавляем target="_blank" и rel="noopener noreferrer" ко всем ссылкам
     // Обрабатываем случаи, когда ссылка уже может иметь атрибуты target или rel
-    const htmlWithTargets = rawHtml.replace(/<a\s+([^>]*?)>/gi, (_match, attributes) => {
+    const htmlWithTargets = htmlWithoutSources.replace(/<a\s+([^>]*?)>/gi, (_match, attributes) => {
       // Проверяем, есть ли уже target или rel
       const hasTarget = /target\s*=/i.test(attributes)
       const hasRel = /rel\s*=/i.test(attributes)
