@@ -75,6 +75,9 @@ npx playwright test
 # Исправление проблем с Weaviate портами
 ./scripts/fix_weaviate_ports.sh
 
+# Полная очистка и перезапуск Weaviate
+./scripts/clean_restart_weaviate.sh
+
 # Диагностика проблем
 ./scripts/diagnose.sh simbioset-website
 
@@ -137,6 +140,12 @@ dokku ps:restart simbioset-website
 
 # Исправление проблем с портами Weaviate
 ./scripts/fix_weaviate_ports.sh
+
+# Полная очистка и перезапуск Weaviate
+./scripts/clean_restart_weaviate.sh
+
+# Проверить что использует порт 8080
+./scripts/check_port_8080.sh
 
 # Ручная диагностика:
 # Проверить статус приложений

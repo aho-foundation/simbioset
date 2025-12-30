@@ -6,7 +6,7 @@ import sys
 import requests
 import time
 
-WEAVIATE_URL = os.getenv("WEAVIATE_URL", "http://localhost:8080")
+WEAVIATE_URL = os.getenv("WEAVIATE_URL", "http://weaviate:8080")
 
 def check_weaviate():
     """Проверяет доступность Weaviate"""

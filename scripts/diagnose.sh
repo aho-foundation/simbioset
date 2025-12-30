@@ -35,14 +35,29 @@ dokku logs "$APP_NAME" --tail 20 2>/dev/null | grep -E "(ERROR|❌|💥|Connecti
 echo ""
 echo "🔍 Статус Weaviate:"
 WEAVIATE_CONFIG=$(dokku config:show "$APP_NAME" 2>/dev/null | grep WEAVIATE_URL || echo "")
+FORCE_FAISS=$(dokku config:show "$APP_NAME" 2>/dev/null | grep FORCE_FAISS || echo "")
+
 if [ -n "$WEAVIATE_CONFIG" ]; then
+    echo "✅ WEAVIATE_URL настроен"
     if dokku ps:report weaviate 2>/dev/null | grep -q "running"; then
         echo "✅ Weaviate запущен"
+        # Тестируем подключение
+        if curl -f -s --max-time 5 "http://weaviate:8080/v1/meta" > /dev/null 2>&1; then
+            echo "✅ Weaviate API доступен"
+        else
+            echo "❌ Weaviate API недоступен"
+        fi
     else
         echo "❌ Weaviate не запущен"
     fi
 else
-    echo "ℹ️  Weaviate не настроен"
+    echo "ℹ️  WEAVIATE_URL не настроен"
+fi
+
+if [ -n "$FORCE_FAISS" ]; then
+    echo "ℹ️  FORCE_FAISS: $FORCE_FAISS"
+else
+    echo "ℹ️  FORCE_FAISS не установлен (по умолчанию false)"
 fi
 
 echo ""
