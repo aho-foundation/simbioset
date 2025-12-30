@@ -34,7 +34,7 @@ from api.storage.paragraph_service import ParagraphService
 from api.classify.tag_service import TagService
 from api.storage.nodes_repository import DatabaseNodeRepository
 from api.kb.service import KBService
-from api.settings import MODELS_CACHE_DIR, DATABASE_URL, DATABASE_PATH, WEAVIATE_URL
+from api.settings import MODELS_CACHE_DIR, DATABASE_URL, DATABASE_PATH, WEAVIATE_GRPC_URL, WEAVIATE_URL
 from api.logger import root_logger
 import asyncio
 
@@ -126,8 +126,8 @@ async def lifespan(app: FastAPI):
             storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
             log("✅ FAISSStorage инициализирован (forced)")
         # Если WEAVIATE_URL не задан - используем FAISS
-        elif not WEAVIATE_URL:
-            log("📦 WEAVIATE_URL не задан, используем FAISSStorage")
+        elif not WEAVIATE_URL and not WEAVIATE_GRPC_URL:
+            log("📦 WEAVIATE_URL или WEAVIATE_GRPC_URL не задан, используем FAISSStorage")
             storage = FAISSStorage(cache_folder=MODELS_CACHE_DIR)
             log("✅ FAISSStorage инициализирован")
         # Пробуем Weaviate с предварительной проверкой и fallback на FAISS
