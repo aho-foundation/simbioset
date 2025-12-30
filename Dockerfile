@@ -1,10 +1,13 @@
 # syntax=docker/dockerfile:1.4
 
 # Use Python with Node.js pre-installed to avoid network issues
-FROM --platform=linux/amd64 nikolaik/python-nodejs:python3.11-nodejs24-alpine AS base
+FROM ghcr.io/astral-sh/uv:debian AS base
 
-# Python and Node.js are already installed, just set up uv
-RUN pip install --no-cache-dir uv && uv venv /opt/venv
+# Install Node.js and setup uv venv
+RUN apt-get update && apt-get install -y curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && uv venv /opt/venv
 
 FROM base AS node-base
 
