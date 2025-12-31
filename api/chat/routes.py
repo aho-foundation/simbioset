@@ -318,17 +318,13 @@ async def send_chat_message(message_data: ChatMessageCreate, request: Request, r
                     additional_notes=f"Extracted from chat message in session {actual_session_id}",
                 )
 
-        # Build context for LLM with smart compression
-        from api.llm import get_llm_client_wrapper
-
         # Извлекаем экосистему и локацию из сообщения для фильтрации контекста
         ecosystem_data = await extract_ecosystem_and_location(message_data.message)
         location = ecosystem_data.get("location")
         ecosystems = ecosystem_data.get("ecosystems", [])
 
-        llm_client = get_llm_client_wrapper()
         conversation_summary, recent_messages = await build_context_for_llm(
-            actual_session_id, service, llm_client, location=location, ecosystems=ecosystems
+            actual_session_id, service, location=location, ecosystems=ecosystems
         )
 
         # Determine which context sections to include

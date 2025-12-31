@@ -138,18 +138,36 @@ COPY package.json package-lock.json* ./
 COPY --from=build-stage /app/.cache/ms-playwright /app/.cache/ms-playwright
 
 # Install Playwright browsers only if missing (fallback for cases where build-stage didn't install)
-RUN mkdir -p /app/.cache/ms-playwright && \
+# Устанавливаем системные зависимости для Playwright
+RUN apt-get update && apt-get install -y \
+    libnss3 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libatspi2.0-0 \
+    libxshmfence1 \
+    || echo "Some packages may already be installed" && \
+    mkdir -p /app/.cache/ms-playwright && \
     echo "Checking Playwright chromium browser for runtime..." && \
     if ! find /app/.cache/ms-playwright -maxdepth 1 -type d -name "chromium-*" 2>/dev/null | grep -q .; then \
         echo "⚠️ Browsers not found, installing Playwright chromium browser..." && \
         npm install @playwright/test --no-save --no-audit --no-fund && \
-        npx playwright install --with-deps chromium && \
+        PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright npx playwright install --with-deps chromium && \
         npm uninstall @playwright/test; \
     else \
         echo "✅ Chromium browser found, skipping installation"; \
     fi && \
     echo "Runtime Playwright browsers:" && \
-    ls -la /app/.cache/ms-playwright/
+    ls -la /app/.cache/ms-playwright/ && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create directory for venv symlink (symlink will be created at runtime)
 RUN mkdir -p /opt

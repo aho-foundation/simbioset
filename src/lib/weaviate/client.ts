@@ -40,7 +40,7 @@ export class WeaviateClient {
       ...(params.timestamp_to !== undefined && { timestamp_to: params.timestamp_to.toString() })
     })
 
-    const response = await fetch(`${this.baseUrl}/search?${searchParams}`)
+    const response = await fetch(`${this.baseUrl}/storage/search?${searchParams}`)
     if (!response.ok) {
       throw new Error(`Search failed: ${response.statusText}`)
     }
@@ -51,7 +51,9 @@ export class WeaviateClient {
 
   // Получение параграфа по ID
   async getParagraph(documentId: string, paragraphId: string): Promise<Paragraph> {
-    const response = await fetch(`${this.baseUrl}/documents/${documentId}/paragraphs/${paragraphId}`)
+    const response = await fetch(
+      `${this.baseUrl}/storage/documents/${documentId}/paragraphs/${paragraphId}`
+    )
     if (!response.ok) {
       throw new Error(`Get paragraph failed: ${response.statusText}`)
     }

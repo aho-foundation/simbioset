@@ -76,7 +76,23 @@ class WebSearchService:
                         continue
 
                     # Crawl the webpage
-                    crawl_result = await self.crawler.arun(url=url, bypass_cache=True, verbose=False)
+                    try:
+                        crawl_result = await self.crawler.arun(url=url, bypass_cache=True, verbose=False)
+                    except Exception as crawl_error:
+                        # Если Playwright не установлен или другая ошибка при краулинге
+                        logger.warning(f"Failed to crawl {url}: {str(crawl_error)}")
+                        # Используем описание из поиска как fallback
+                        results.append(
+                            {
+                                "title": result.get("title", ""),
+                                "url": url,
+                                "content": result.get("body", ""),
+                                "description": result.get("body", "")[:500],
+                            }
+                        )
+                        if len(results) >= max_results:
+                            break
+                        continue
 
                     if crawl_result and crawl_result.success:
                         # Extract main content from the crawled page

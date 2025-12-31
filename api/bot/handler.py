@@ -268,11 +268,8 @@ class MessageProcessor:
             ecosystems = ecosystem_data.get("ecosystems", [])
 
             # Build context for LLM with smart compression and filtering by location/ecosystem
-            from api.llm import get_llm_client_wrapper
-
-            llm_client = get_llm_client_wrapper()
             conversation_summary, recent_messages = await build_context_for_llm(
-                chat_id, kb_service, llm_client, location=location, ecosystems=ecosystems
+                chat_id, kb_service, location=location, ecosystems=ecosystems
             )
 
             # Determine which context sections to include

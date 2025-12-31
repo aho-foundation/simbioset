@@ -46,7 +46,8 @@ def _get_http_session() -> aiohttp.ClientSession:
     """Получает или создает aiohttp сессию для прямых запросов к прокси."""
     global _http_session
     if _http_session is None:
-        timeout = aiohttp.ClientTimeout(total=120.0)
+        # Увеличиваем таймаут для длинных запросов к LLM
+        timeout = aiohttp.ClientTimeout(total=180.0, connect=30.0)
         _http_session = aiohttp.ClientSession(
             timeout=timeout,
         )
@@ -130,7 +131,7 @@ async def _call_proxy_api(
             # Проверяем статус ответа
             if status_code == 401:
                 raise LLMPermanentError(f"Authorization error: HTTP {status_code}")
-            elif status_code == 503:
+            elif status_code in [503, 504]:  # Service unavailable, Gateway timeout
                 raise LLMTemporaryError(f"Service unavailable: HTTP {status_code}")
             elif status_code >= 500:
                 raise LLMTemporaryError(f"Server error: HTTP {status_code}")
@@ -292,45 +293,3 @@ def get_llm_client_wrapper() -> LLMClientWrapper:
         LLMClientWrapper с методом generate()
     """
     return LLMClientWrapper()
-
-
-async def rephrase_search_query(query: str) -> List[str]:
-    """
-    Перефразирует поисковый запрос для поиска косвенных совпадений через LLM.
-    Генерирует 2-3 альтернативные формулировки.
-
-    Args:
-        query: Исходный поисковый запрос
-
-    Returns:
-        Список альтернативных формулировок запроса
-    """
-    prompt = f"""
-    You are a search expert. The user's query returned no results.
-    Generate 3 alternative search queries that might find relevant information even if the exact keywords are missing.
-    Focus on:
-    1. Synonyms and related concepts
-    2. Broader or narrower terms
-    3. Different linguistic formulations
-     
-    User Query: "{query}"
-     
-    Output ONLY a JSON array of strings, e.g. ["query 1", "query 2", "query 3"].
-    """
-    try:
-        response = await call_llm(prompt, origin="rephrase_search_query")
-        # Extract JSON from response (it might have markdown code blocks)
-        import re
-
-        json_match = re.search(r"\[.*\]", response, re.DOTALL)
-        if json_match:
-            result = json.loads(json_match.group(0))
-            # Ensure result is a list of strings
-            if isinstance(result, list) and all(isinstance(item, str) for item in result):
-                return result
-            else:
-                return []
-        return []
-    except Exception as e:
-        log(f"⚠️ Query rephrasing failed: {e}")
-        return []

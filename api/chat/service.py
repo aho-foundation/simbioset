@@ -1,8 +1,12 @@
 """Chat service for managing chat sessions."""
 
+import json
+import random
 import time
 import uuid
-from typing import List
+import fcntl
+from pathlib import Path
+from typing import List, Set
 
 from api.llm import call_llm
 from api.logger import root_logger
@@ -10,6 +14,67 @@ from api.logger import root_logger
 from .models import ChatSession, ChatSessionCreate
 
 log = root_logger.debug
+
+# Кеш стартеров
+_STARTERS_CACHE_FILE = Path("data/starters_cache.json")
+_STARTERS_CACHE: Set[str] = set()
+_MAX_CACHED_STARTERS = 250
+
+
+def _load_starters_cache() -> Set[str]:
+    """Загружает кеш стартеров из файла."""
+    global _STARTERS_CACHE
+    if _STARTERS_CACHE:
+        return _STARTERS_CACHE
+
+    _STARTERS_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    if not _STARTERS_CACHE_FILE.exists():
+        # Инициализируем с базовыми стартерами
+        initial_starters = {
+            "Что такое симбиоз и симбиосеть?",
+            "Давай вместе исследовать экосистему!",
+            "Как можно улучшать качества биосферы?",
+        }
+        _save_starters_cache(initial_starters)
+        _STARTERS_CACHE = initial_starters
+        return _STARTERS_CACHE
+
+    try:
+        with open(_STARTERS_CACHE_FILE, "r", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            try:
+                data = json.load(f)
+                _STARTERS_CACHE = set(data.get("starters", []))
+                log(f"✅ Загружено {len(_STARTERS_CACHE)} стартеров из кеша")
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except Exception as e:
+        log(f"⚠️ Ошибка загрузки кеша стартеров: {e}")
+        _STARTERS_CACHE = {
+            "Что такое симбиоз и симбиосеть?",
+            "Давай вместе исследовать экосистему!",
+            "Как можно улучшать качества биосферы?",
+        }
+
+    return _STARTERS_CACHE
+
+
+def _save_starters_cache(starters: Set[str]) -> None:
+    """Сохраняет кеш стартеров в файл."""
+    try:
+        with open(_STARTERS_CACHE_FILE, "w", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                json.dump({"starters": list(starters)}, f, ensure_ascii=False, indent=2)
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except Exception as e:
+        log(f"⚠️ Ошибка сохранения кеша стартеров: {e}")
+
+
+# Загружаем кеш при импорте модуля
+_load_starters_cache()
 
 
 class ChatSessionService:
@@ -123,11 +188,25 @@ class ChatSessionService:
 
 async def generate_starters() -> List[str]:
     """
-    Generates conversation starters for the symbiosis project using LLM.
+    Generates conversation starters for the symbiosis project.
+    
+    Генерирует новые стартеры через LLM и кеширует их.
+    После накопления 250 стартеров в кеше, возвращает только из кеша.
 
     Returns:
         List of 3 conversation starter questions/phrases
     """
+    global _STARTERS_CACHE
+
+    # Загружаем кеш если еще не загружен
+    cache = _load_starters_cache()
+
+    # Если в кеше уже 250+ стартеров, возвращаем случайные 3 из кеша
+    if len(cache) >= _MAX_CACHED_STARTERS:
+        log(f"📦 Кеш стартеров полон ({len(cache)}), возвращаем из кеша")
+        return random.sample(list(cache), min(3, len(cache)))
+
+    # Генерируем новые стартеры через LLM
     prompt = """
     You are an expert in symbiosis and biosphere research. Generate 3 engaging conversation starters
     for a platform about symbiosis and ecosystem improvement. Each starter should be:
@@ -135,25 +214,47 @@ async def generate_starters() -> List[str]:
     - Concise (under 100 characters)
     - Thought-provoking and relevant to symbiosis/biosphere topics
     - Varied in approach (some questions, some statements)
+    - Different from common starters like "что такое симбиоз" or "давай исследовать экосистему"
 
     Output ONLY a JSON array of strings, e.g. ["question 1", "statement 2", "question 3"].
     """
     try:
-        response = await call_llm(prompt)
+        response = await call_llm(prompt, origin="generate_starters")
         # Extract JSON from response
         import re
-        import json
 
         json_match = re.search(r"\[.*\]", response, re.DOTALL)
         if json_match:
             result = json.loads(json_match.group(0))
             # Ensure result is a list of strings
             if isinstance(result, list) and all(isinstance(item, str) for item in result):
-                return result[:3]  # Return max 3 starters
-        return ["что такое симбиоз?", "давай исследовать экосистему!", "как улучшить биосферу?"]
+                new_starters = [s.strip() for s in result[:3] if s.strip()]
+
+                # Добавляем новые стартеры в кеш (исключая дубликаты)
+                cache.update(new_starters)
+                _STARTERS_CACHE = cache
+
+                # Сохраняем кеш в файл
+                _save_starters_cache(cache)
+
+                log(f"✅ Сгенерировано {len(new_starters)} новых стартеров, в кеше теперь {len(cache)}")
+                return new_starters
+
+        # Fallback на статичные стартеры при ошибке парсинга
+        fallback = ["Что такое симбиоз и симбиосеть?", "Давай вместе исследовать экосистему!", "Как можно улучшать качества биосферы?"]
+        cache.update(fallback)
+        _STARTERS_CACHE = cache
+        _save_starters_cache(cache)
+        return fallback
+
     except Exception as e:
         log(f"⚠️ Starters generation failed: {e}")
-        return ["что такое симбиоз?", "давай исследовать экосистему!", "как улучшить биосферу?"]
+        # Fallback на статичные стартеры при ошибке
+        fallback = ["Что такое симбиоз и симбиосеть?", "Давай вместе исследовать экосистему!", "Как можно улучшать качества биосферы?"]
+        cache.update(fallback)
+        _STARTERS_CACHE = cache
+        _save_starters_cache(cache)
+        return fallback
 
 
 # Global instance

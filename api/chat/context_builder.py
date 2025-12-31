@@ -2,60 +2,12 @@
 
 import logging
 from typing import List, Dict, Tuple, Optional, Any
-from api.llm import get_llm_client_wrapper
 from api.kb.service import KBService
-from api.prompts.conversation_summary import SUMMARY_PROMPT
 from api.detect.localize import extract_location_and_time
 from api.detect.weather import get_weather, format_weather_for_context
 from api.detect.ecosystem_scaler import detect_ecosystems
 
 logger = logging.getLogger(__name__)
-
-
-async def generate_conversation_summary(messages: List[Dict], llm_client) -> Optional[str]:
-    """
-    Создаёт детальную сводку старых сообщений через LLM.
-
-    Args:
-        messages: Список сообщений для анализа (старые сообщения)
-        llm_client: Клиент для LLM API
-
-    Returns:
-        Строка с детальной сводкой или None если сводка не нужна
-    """
-    if not messages:
-        return None
-
-    # Форматируем сообщения для LLM (консистентно с format_conversation_history)
-    formatted_messages = []
-    for msg in messages:
-        sender = msg.get("sender", "user")
-        # Нормализуем роль: "assistant" -> "Assistant", "user" -> "User"
-        if sender.lower() == "assistant":
-            sender_label = "Assistant"
-        elif sender.lower() == "user":
-            sender_label = "User"
-        else:
-            sender_label = sender.capitalize()
-        content = msg.get("content", "")
-        formatted_messages.append(f"{sender_label}: {content}")
-
-    conversation_text = "\n".join(formatted_messages)
-
-    # Подготавливаем промпт для генерации сводки
-    prompt = SUMMARY_PROMPT.format(conversation=conversation_text)
-
-    try:
-        response = await llm_client.generate(prompt)
-        summary = response.strip()
-
-        # Возвращаем сводку только если она содержит полезную информацию
-        if summary and len(summary.strip()) > 10:
-            return summary
-        return None
-    except Exception as e:
-        logger.error(f"Ошибка при генерации сводки разговора: {e}")
-        return None
 
 
 def format_conversation_history(messages: List[Dict], limit: int = 20) -> str:
@@ -204,28 +156,15 @@ async def build_context_for_llm(
     if not all_messages:
         return None, ""
 
-    # Если сообщений <= 20, возвращаем все как recent_messages, без сводки
-    if len(all_messages) <= 20:
-        recent_messages = format_conversation_history(all_messages, 20)
-        logger.debug(f"Включено {len(all_messages)} сообщений в recent_messages (без сводки)")
-        return None, recent_messages
+    # Берем последние 50 сообщений вместо генерации сводки через LLM
+    # Это проще, быстрее и не требует дополнительных вызовов LLM
+    max_recent = 50
+    recent_messages_list = all_messages[-max_recent:] if len(all_messages) > max_recent else all_messages
+    recent_messages = format_conversation_history(recent_messages_list, max_recent)
+    logger.debug(f"Включено {len(recent_messages_list)} сообщений в recent_messages")
 
-    # Разделяем сообщения: последние 20 (recent) и остальные (для сводки)
-    recent_messages_list = all_messages[-20:]
-    old_messages_list = all_messages[:-20]
-
-    # Форматируем последние 20 сообщений
-    recent_messages = format_conversation_history(recent_messages_list, 20)
-    logger.debug(
-        f"Включено {len(recent_messages_list)} сообщений в recent_messages, {len(old_messages_list)} для сводки"
-    )
-
-    # Генерируем сводку старых сообщений через LLM
-    summary = await generate_conversation_summary(old_messages_list, llm_client)
-    if summary:
-        logger.debug(f"Сгенерирована сводка из {len(old_messages_list)} старых сообщений")
-
-    return summary, recent_messages
+    # Сводка больше не генерируется - используем только recent_messages
+    return None, recent_messages
 
 
 def should_include_context(conversation_summary: Optional[str], recent_messages: str) -> Tuple[bool, bool]:

@@ -1495,43 +1495,9 @@ class WeaviateStorage:
                 organism_ids_filter,
             )
 
-        # Если результатов достаточно, возвращаем их
-        if len(similar_pairs) >= 3:
-            return [para for para, score in similar_pairs]
-
-        log(f"🔍 Мало результатов ({len(similar_pairs)}), пробуем перефразировать запрос: '{query}'")
-        from api.llm import rephrase_search_query
-
-        rephrased_queries = await rephrase_search_query(query)
-
-        all_results = {}  # Используем dict для дедупликации по paragraph_id
-
-        # Добавляем исходные результаты
-        for para, score in similar_pairs:
-            all_results[para.id] = (para, score)
-
-        # Ищем по перефразированным запросам
-        for new_query in rephrased_queries:
-            log(f"🔄 Поиск по перефразированному запросу: '{new_query}'")
-            new_pairs = self.search_similar(
-                new_query,
-                document_id,
-                top_k=3,
-                classification_filter=classification_filter,
-                fact_check_filter=fact_check_filter,
-                location_filter=location_filter,
-                ecosystem_id_filter=ecosystem_id_filter,
-                organism_ids_filter=organism_ids_filter,
-            )
-            for para, score in new_pairs:
-                # Если параграф уже есть, оставляем с лучшим скором
-                if para.id not in all_results or score > all_results[para.id][1]:
-                    all_results[para.id] = (para, score)
-
-        # Сортируем по скору
-        sorted_results = sorted(all_results.values(), key=lambda x: x[1], reverse=True)
-
-        return [para for para, score in sorted_results[:top_k]]
+        # Возвращаем результаты, даже если их мало
+        # Перефразирование запроса выполняется только по запросу пользователя через action tool
+        return [para for para, score in similar_pairs]
 
     def get_paragraph_by_id(self, document_id: str, paragraph_id: str) -> Optional[Paragraph]:
         """Получает параграф по ID из Weaviate (v4 API).
