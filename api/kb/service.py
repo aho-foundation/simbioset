@@ -6,7 +6,6 @@ Based on conversation tree framework documented in docs/conversation_tree_framew
 import time
 from typing import Any, Optional
 
-from .constants import SENDER_USER
 from .models import (
     ConceptNode,
     DeleteResponse,

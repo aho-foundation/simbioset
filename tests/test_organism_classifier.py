@@ -18,7 +18,7 @@ class TestOrganismClassifier:
     """Тесты классификатора организмов."""
 
     @pytest.mark.asyncio
-    @patch("api.classify.organism_classifier.call_llm_with_retry")
+    @patch("api.classify.organism_classifier.call_llm")
     async def test_classify_organism_role_producer(self, mock_llm):
         """Тест классификации продуцента."""
         mock_llm.return_value = """{
@@ -35,7 +35,7 @@ class TestOrganismClassifier:
         assert result["confidence"] == 0.9
 
     @pytest.mark.asyncio
-    @patch("api.classify.organism_classifier.call_llm_with_retry")
+    @patch("api.classify.organism_classifier.call_llm")
     async def test_classify_organism_role_consumer(self, mock_llm):
         """Тест классификации консумента."""
         mock_llm.return_value = """{
@@ -51,7 +51,7 @@ class TestOrganismClassifier:
         assert "herbivory" in result["biochemical_roles"]
 
     @pytest.mark.asyncio
-    @patch("api.classify.organism_classifier.call_llm_with_retry")
+    @patch("api.classify.organism_classifier.call_llm")
     async def test_classify_organism_role_decomposer(self, mock_llm):
         """Тест классификации редуцента."""
         mock_llm.return_value = """{
@@ -67,7 +67,7 @@ class TestOrganismClassifier:
         assert "decomposition" in result["biochemical_roles"]
 
     @pytest.mark.asyncio
-    @patch("api.classify.organism_classifier.call_llm_with_retry")
+    @patch("api.classify.organism_classifier.call_llm")
     async def test_classify_organism_role_multiple_roles(self, mock_llm):
         """Тест классификации с множественными ролями."""
         mock_llm.return_value = """{
@@ -85,7 +85,7 @@ class TestOrganismClassifier:
         assert "carnivory" in result["biochemical_roles"]
 
     @pytest.mark.asyncio
-    @patch("api.classify.organism_classifier.call_llm_with_retry")
+    @patch("api.classify.organism_classifier.call_llm")
     async def test_classify_organisms_batch(self, mock_llm):
         """Тест пакетной классификации организмов."""
         mock_llm.side_effect = [
@@ -106,7 +106,7 @@ class TestOrganismClassifier:
         assert "classification_confidence" in classified[0]
 
     @pytest.mark.asyncio
-    @patch("api.classify.organism_classifier.call_llm_with_retry")
+    @patch("api.classify.organism_classifier.call_llm")
     async def test_classify_organism_role_invalid_json(self, mock_llm):
         """Тест обработки невалидного JSON."""
         mock_llm.return_value = "Не JSON ответ"
@@ -117,7 +117,7 @@ class TestOrganismClassifier:
         assert result["confidence"] == 0.0
 
     @pytest.mark.asyncio
-    @patch("api.classify.organism_classifier.call_llm_with_retry")
+    @patch("api.classify.organism_classifier.call_llm")
     async def test_classify_organism_role_all_trophic_levels(self, mock_llm):
         """Тест всех трофических уровней."""
         trophic_levels = [

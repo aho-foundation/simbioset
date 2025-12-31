@@ -194,7 +194,7 @@ class MessageProcessor:
     async def _process_message_with_llm(self, bot, message) -> None:
         """Process message with LLM and send response."""
         try:
-            from api.llm import call_llm_with_retry, LLMPermanentError, LLMTemporaryError
+            from api.llm import call_llm, LLMPermanentError, LLMTemporaryError
             from api.detect.web_search import web_search_service
             from api.kb.user_metrics import user_metrics_service
             from api.chat.context_builder import (
@@ -356,7 +356,7 @@ class MessageProcessor:
             # Call LLM to get response
             root_logger.info(f"Processing message from Telegram user {telegram_user_id} (chat_id: {chat_id})")
             try:
-                response_content = await call_llm_with_retry(llm_context, origin="telegram_bot")
+                response_content = await call_llm(llm_context, origin="telegram_bot")
                 root_logger.info(f"Received LLM response (length: {len(response_content)} chars)")
             except (LLMPermanentError, LLMTemporaryError) as e:
                 # До сюда доходим только если LLM не смогла ответить даже после всех ретраев.

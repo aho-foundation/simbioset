@@ -10,7 +10,6 @@ from api.storage.faiss import Paragraph
 from api.storage.symbiotic_service import SymbioticService
 from api.storage.organism_service import OrganismService
 from api.storage.ecosystem_service import EcosystemService
-from api.storage.db import DatabaseManagerBase
 from api.logger import root_logger
 
 log = root_logger.debug

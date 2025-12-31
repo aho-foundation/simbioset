@@ -4,7 +4,7 @@ import time
 import uuid
 from typing import List
 
-from api.llm import call_llm_with_retry
+from api.llm import call_llm
 from api.logger import root_logger
 
 from .models import ChatSession, ChatSessionCreate
@@ -139,7 +139,7 @@ async def generate_starters() -> List[str]:
     Output ONLY a JSON array of strings, e.g. ["question 1", "statement 2", "question 3"].
     """
     try:
-        response = await call_llm_with_retry(prompt)
+        response = await call_llm(prompt)
         # Extract JSON from response
         import re
         import json

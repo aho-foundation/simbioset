@@ -10,8 +10,6 @@ import bleach
 from pydantic import BaseModel, Field, field_validator
 
 from .constants import (
-    SENDER_BOT,
-    SENDER_USER,
     SENTIMENT_NEGATIVE,
     SENTIMENT_NEUTRAL,
     SENTIMENT_POSITIVE,

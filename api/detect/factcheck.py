@@ -5,7 +5,7 @@
 """
 
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 
 class FactCheckResult(Enum):
@@ -18,7 +18,7 @@ class FactCheckResult(Enum):
     UNKNOWN = "unknown"  # неизвестно
 
 
-def check_factuality(text: str) -> Dict[str, Any]:
+def check_factuality(text: str) -> Dict[str, Any]:  
     """
     Проверяет достоверность утверждения в тексте.
 

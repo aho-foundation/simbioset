@@ -9,10 +9,10 @@
 
 import json
 import re
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from pathlib import Path
 
-from api.llm import call_llm_with_retry
+from api.llm import call_llm
 from api.detect.web_search import WebSearchService
 from api.classify.organism_classifier import classify_organism_role
 from api.storage.symbiotic_service import SymbioticService
@@ -341,7 +341,7 @@ class AgREEAgent:
         )
 
         try:
-            response = await call_llm_with_retry(prompt, origin="agree_agent", context_size_hint="normal")
+            response = await call_llm(prompt, origin="agree_agent")
 
             # Парсим JSON из ответа
             json_match = re.search(r"\{.*\}", response, re.DOTALL)

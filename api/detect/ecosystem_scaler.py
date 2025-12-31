@@ -13,7 +13,7 @@ from pathlib import Path
 from string import Template
 from typing import List, Optional, Dict, Any
 
-from api.llm import call_llm_with_retry
+from api.llm import call_llm
 from api.logger import root_logger
 from api.detect.localize import extract_location_and_time
 
@@ -88,7 +88,7 @@ async def detect_ecosystems(text: str, location_data: Optional[Dict[str, Any]] =
     )
 
     try:
-        response = await call_llm_with_retry(prompt, origin="ecosystem_scaler")
+        response = await call_llm(prompt, origin="ecosystem_scaler")
 
         # Парсим JSON ответ
         json_match = re.search(r"\[.*?\]", response, re.DOTALL)

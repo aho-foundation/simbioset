@@ -7,7 +7,7 @@ import json
 from typing import List, Optional, Dict, Any
 
 from api.storage.db import DatabaseManagerBase
-from api.llm import call_llm_with_retry
+from api.llm import call_llm
 from api.logger import root_logger
 
 log = root_logger.debug
@@ -285,7 +285,7 @@ class TagService:
         )
 
         try:
-            response = await call_llm_with_retry(prompt)
+            response = await call_llm(prompt)
             # Парсим JSON ответ
             # LLM может вернуть ответ с пояснениями, нужно извлечь JSON
             import re
@@ -313,9 +313,7 @@ class TagService:
             Список тегов или None при ошибке
         """
         try:
-            response = await call_llm_with_retry(
-                llm_context=prompt, origin="hybrid_classification", context_size_hint="normal"
-            )
+            response = await call_llm(llm_context=prompt, origin="hybrid_classification")
 
             # Парсим ответ как JSON или список через запятую
             response = response.strip()
@@ -417,7 +415,7 @@ class TagService:
 Ответ:"""
 
         try:
-            response = await call_llm_with_retry(prompt)
+            response = await call_llm(prompt)
             # Парсим JSON ответ
             import re
 

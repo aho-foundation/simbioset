@@ -10,7 +10,7 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 
 from .constants import MAX_TREE_DEPTH, MAX_TOTAL_NODES, MAX_CHILDREN_PER_NODE
-from .models import DataDict, NodeDict
+from .models import DataDict
 
 
 class NodeRepository(ABC):

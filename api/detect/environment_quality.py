@@ -10,7 +10,7 @@
 from typing import Dict, Any, Optional
 from pathlib import Path
 
-from api.llm import call_llm_with_retry
+from api.llm import call_llm
 from api.logger import root_logger
 from api.detect.localize import extract_location_and_time
 
@@ -98,7 +98,7 @@ async def detect_environment(text: str, location_data: Optional[Dict[str, Any]] 
     )
 
     try:
-        response = await call_llm_with_retry(prompt, origin="environment_quality")
+        response = await call_llm(prompt, origin="environment_quality")
         # Парсим JSON ответ
         import re
         import json

@@ -12,7 +12,7 @@ from api.chat.service import chat_session_service, generate_starters
 from api.kb.models import ConceptNode
 from api.kb.service import KBService
 from api.storage.paragraph_service import ParagraphService
-from api.llm import LLMPermanentError, LLMTemporaryError, call_llm_with_retry
+from api.llm import LLMPermanentError, LLMTemporaryError, call_llm
 from api.sessions import session_manager
 from api.logger import root_logger
 import re
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/api/chat", tags=["Chat"])
 # Services will be injected from app.state in route handlers
 
 # Фильтрация LLM ответов выполняется в прокси (llm_proxy)
-# Функция clean_llm_response удалена для соблюдения принципа DRY
+# Нормализация и исправление искаженных символов выполняется в call_llm
 
 
 def remove_sources_section_from_content(content: str) -> str:
@@ -374,7 +374,8 @@ async def send_chat_message(message_data: ChatMessageCreate, request: Request, r
 
         try:
             # Прокси уже выполняет фильтрацию ответов, дополнительная очистка не нужна
-            response_content = await call_llm_with_retry(llm_context, origin="chat_message")
+            # Нормализация кодировки выполняется внутри call_llm
+            response_content = await call_llm(llm_context, origin="chat_message")
 
             # Парсим источники из ответа LLM (до удаления раздела из текста)
             sources: List[Dict[str, str]] = parse_sources_from_response(response_content)

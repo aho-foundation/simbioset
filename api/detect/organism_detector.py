@@ -4,8 +4,8 @@
 Использует LLM для извлечения информации об организмах из текста.
 """
 
-from typing import List, Optional, Dict, Any
-from api.llm import call_llm_with_retry
+from typing import List, Dict, Any
+from api.llm import call_llm
 from api.logger import root_logger
 from pathlib import Path
 
@@ -56,7 +56,7 @@ async def detect_organisms(text: str) -> List[Dict[str, Any]]:
     prompt = prompt_template.replace("{text}", text_limited)
 
     try:
-        response = await call_llm_with_retry(prompt)
+        response = await call_llm(prompt)
         # Парсим JSON ответ
         import re
         import json

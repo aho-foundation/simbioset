@@ -1,7 +1,7 @@
 """Module for handling user-provided metrics and observations."""
 
 import time
-from typing import Dict, Any, Optional
+from typing import Optional
 from api.kb.models import ConceptNode
 from api.kb.service import KBService
 

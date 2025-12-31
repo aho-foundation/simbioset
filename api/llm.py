@@ -1,13 +1,14 @@
 """
-LLM API Proxy Client - Provides LLM access with retry logic and model management
-Поддерживает context_size_hint для оптимизации выбора модели.
+LLM API Proxy Client - Provides LLM access through proxy.
+
+Ретраи и очистка текста выполняются в прокси.
 """
 
 import asyncio
 import json
+import re
 from typing import List, Optional, Dict, Any
 from openai import AsyncOpenAI
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from api.logger import root_logger
 from api.settings import LLM_PROXY_URL, LLM_PROXY_TOKEN
 import aiohttp
@@ -86,16 +87,13 @@ class LLMPermanentError(LLMError):
 async def _call_proxy_api(
     messages: List[dict],
     model: Optional[str] = None,
-    context_size_hint: Optional[str] = None,
 ) -> str:
     """
     Вызывает прокси-сервис для получения ответа от LLM.
-    Использует прямой HTTP запрос для поддержки context_size_hint.
 
     Args:
         messages: Список сообщений в формате OpenAI API
         model: Имя модели (опционально, если не указано - выбирается автоматически)
-        context_size_hint: Подсказка о размере контекста ("normal" или "large")
 
     Returns:
         Текст ответа от LLM
@@ -117,8 +115,6 @@ async def _call_proxy_api(
         # Добавляем опциональные параметры
         if model:
             body["model"] = model
-        if context_size_hint:
-            body["context_size_hint"] = context_size_hint
 
         # Формируем заголовки с токеном авторизации
         headers: Dict[str, str] = {}
@@ -179,43 +175,20 @@ async def _call_proxy_api(
         raise LLMTemporaryError(f"Unexpected error: {e}")
 
 
-def _determine_context_size_hint(context: str) -> str:
-    """
-    Определяет подсказку о размере контекста на основе его длины.
-
-    Args:
-        context: Текст контекста
-
-    Returns:
-        "normal" или "large"
-    """
-    # Приблизительный расчет: 1 токен ≈ 4 символа
-    # Большой контекст: > 10000 символов (≈ 2500 токенов)
-    return "large" if len(context) > 10000 else "normal"
-
-
-@retry(
-    retry=retry_if_exception_type(LLMTemporaryError),
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=4, max=10),
-    reraise=True,
-)
-async def call_llm_with_retry(
+async def call_llm(
     llm_context: str,
     *,
     origin: str | None = None,
-    context_size_hint: Optional[str] = None,
     model: Optional[str] = None,
 ) -> str:
     """
-    Вызывает LLM с автоматическими повторами при временных ошибках.
-    Автоматически определяет context_size_hint на основе размера контекста.
+    Вызывает LLM через прокси.
+
+    Ретраи выполняются в прокси, здесь только простой вызов.
 
     Args:
         llm_context: Контекст для LLM
         origin: Тег источника для логирования
-        context_size_hint: Подсказка о размере контекста ("normal" или "large").
-                          Если не указано, определяется автоматически.
         model: Имя модели (опционально, если не указано - выбирается автоматически)
 
     Returns:
@@ -223,42 +196,23 @@ async def call_llm_with_retry(
 
     Raises:
         LLMPermanentError: При невосстановимых ошибках
-        LLMTemporaryError: При временных ошибках (будет повторено)
+        LLMTemporaryError: При временных ошибках
     """
-    try:
-        # Логируем входящий контекст для диагностики (короткий превью, без дампа всего текста)
-        preview = llm_context.strip().replace("\n", " ")
-        if len(preview) > 200:
-            preview = preview[:200] + "…"
-        origin_tag = origin or "generic"
-        log(f"📝 LLM request origin={origin_tag} context_len={len(llm_context)} preview='{preview}'")
+    # Логируем входящий контекст для диагностики (короткий превью, без дампа всего текста)
+    preview = llm_context.strip().replace("\n", " ")
+    if len(preview) > 200:
+        preview = preview[:200] + "…"
+    origin_tag = origin or "generic"
+    log(f"📝 LLM request origin={origin_tag} context_len={len(llm_context)} preview='{preview}'")
 
-        # Определяем context_size_hint если не указан
-        if context_size_hint is None:
-            context_size_hint = _determine_context_size_hint(llm_context)
+    # Вызываем прокси-сервис без указания модели - прокси выберет автоматически
+    # Ретраи выполняются в прокси
+    log(f"🤖 Generating reply via proxy {LLM_PROXY_URL} (origin={origin_tag})")
+    messages = [{"role": "user", "content": llm_context}]
+    reply = await _call_proxy_api(messages, model=model)
 
-        # Вызываем прокси-сервис без указания модели - прокси выберет автоматически
-        log(f"🤖 Generating reply via proxy {LLM_PROXY_URL} (origin={origin_tag}, context_hint={context_size_hint})")
-        messages = [{"role": "user", "content": llm_context}]
-        reply = await _call_proxy_api(messages, model=model, context_size_hint=context_size_hint)
-
-        log(f"✅ reply successfully generated ({len(reply)} characters)")
-        return reply
-
-    except asyncio.TimeoutError as e:
-        log(f"⏱️ Timeout calling proxy: {e}")
-        raise LLMTemporaryError(f"Timeout: {e}")
-    except LLMTemporaryError:
-        # Пробрасываем временные ошибки как есть
-        raise
-    except LLMPermanentError as e:
-        # Постоянные ошибки (например, авторизация) - модель уже удалена из списка в прокси
-        # Пробрасываем как есть
-        raise
-    except Exception as e:
-        error_msg = str(e).lower()
-        log(f"❌ Unexpected error calling proxy: {e}")
-        raise LLMTemporaryError(f"Unexpected error: {e}")
+    log(f"✅ reply successfully generated ({len(reply)} characters)")
+    return reply
 
 
 async def list_models() -> List[Dict[str, Any]]:
@@ -316,18 +270,17 @@ class LLMClientWrapper:
     который использует метод generate().
     """
 
-    async def generate(self, prompt: str, *, context_size_hint: Optional[str] = None) -> str:
+    async def generate(self, prompt: str) -> str:
         """
         Генерирует ответ на промпт через LLM.
 
         Args:
             prompt: Текст промпта
-            context_size_hint: Подсказка о размере контекста ("normal" или "large")
 
         Returns:
             Ответ от LLM
         """
-        return await call_llm_with_retry(prompt, origin="llm_client_wrapper", context_size_hint=context_size_hint)
+        return await call_llm(prompt, origin="llm_client_wrapper")
 
 
 def get_llm_client_wrapper() -> LLMClientWrapper:
@@ -365,7 +318,7 @@ async def rephrase_search_query(query: str) -> List[str]:
     Output ONLY a JSON array of strings, e.g. ["query 1", "query 2", "query 3"].
     """
     try:
-        response = await call_llm_with_retry(prompt, origin="rephrase_search_query", context_size_hint="normal")
+        response = await call_llm(prompt, origin="rephrase_search_query")
         # Extract JSON from response (it might have markdown code blocks)
         import re
 

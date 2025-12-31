@@ -11,7 +11,7 @@
 
 from typing import List, Optional, Dict, Any
 from enum import Enum
-from api.llm import call_llm_with_retry
+from api.llm import call_llm
 from api.logger import root_logger
 from pathlib import Path
 
@@ -90,7 +90,7 @@ async def classify_organism_role(
     )
 
     try:
-        response = await call_llm_with_retry(prompt)
+        response = await call_llm(prompt)
         # Парсим JSON ответ
         import re
         import json

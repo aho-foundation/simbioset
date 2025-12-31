@@ -16,7 +16,7 @@ from PIL import Image, ExifTags
 
 
 from api.logger import root_logger
-from api.llm import call_llm_with_retry
+from api.llm import call_llm
 from api.settings import LLM_PROXY_URL, LLM_PROXY_TOKEN
 from openai import AsyncOpenAI
 from openai import APIError, AuthenticationError, APIConnectionError, APITimeoutError
@@ -413,7 +413,7 @@ class ImageProcessor:
             # Отправляем изображение и промпт в LLM
             # Примечание: для vision моделей нужно использовать специальный API
             # Здесь используем текстовое описание через промпт
-            description = await call_llm_with_retry(prompt, origin="image_vision")
+            description = await call_llm(prompt, origin="image_vision")
             return description
         except Exception as e:
             log(f"⚠️ Ошибка при анализе изображения через LLM: {e}")

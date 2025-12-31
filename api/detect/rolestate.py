@@ -6,7 +6,6 @@ messages got classified by type:
 """
 
 from enum import Enum
-from typing import Optional, Dict, Any
 
 
 class MessageClassification(Enum):

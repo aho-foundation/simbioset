@@ -14,7 +14,7 @@ from api.detect.ecosystem_scaler import detect_ecosystems
 from api.detect.environment_quality import detect_environment
 from api.detect.localize import extract_location_and_time
 from api.detect.factcheck import check_factuality
-from api.llm import call_llm_with_retry
+from api.llm import call_llm
 from api.logger import root_logger
 from pathlib import Path
 import re
@@ -74,7 +74,7 @@ async def detect_intent(request: IntentRequest) -> Dict[str, Any]:
     prompt = prompt_template.replace("{query}", request.query).replace("{context}", request.context or "")
 
     try:
-        response = await call_llm_with_retry(prompt, origin="intent_detector")
+        response = await call_llm(prompt, origin="intent_detector")
 
         # Парсим ответ
         result = _parse_intent_response(response)
@@ -399,7 +399,7 @@ async def summary_endpoint(request: DetectRequest) -> Dict[str, Any]:
         prompt = SUMMARY_PROMPT.replace("{conversation}", request.text)
 
         # Вызываем LLM
-        response = await call_llm_with_retry(prompt, origin="conversation_summary")
+        response = await call_llm(prompt, origin="conversation_summary")
 
         # Парсим JSON ответ
         try:

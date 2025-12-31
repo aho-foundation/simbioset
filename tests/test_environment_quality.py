@@ -14,7 +14,7 @@ class TestEnvironmentDetector:
 
     @pytest.mark.asyncio
     @patch("api.detect.environment_quality.extract_location_and_time")
-    @patch("api.detect.environment_quality.call_llm_with_retry", new_callable=AsyncMock)
+    @patch("api.detect.environment_quality.call_llm", new_callable=AsyncMock)
     async def test_detect_environment_basic(self, mock_llm, mock_location):
         """Тест базового извлечения данных об окружающей среде."""
         mock_location.return_value = {}
@@ -69,7 +69,7 @@ class TestEnvironmentDetector:
         assert result["confidence"] == 0.8
 
     @pytest.mark.asyncio
-    @patch("api.detect.environment_quality.call_llm_with_retry", new_callable=AsyncMock)
+    @patch("api.detect.environment_quality.call_llm", new_callable=AsyncMock)
     async def test_detect_environment_with_location_data(self, mock_llm):
         """Тест извлечения данных с предоставленными данными локализации."""
         mock_llm.return_value = """{
@@ -118,7 +118,7 @@ class TestEnvironmentDetector:
 
     @pytest.mark.asyncio
     @patch("api.detect.environment_quality.extract_location_and_time")
-    @patch("api.detect.environment_quality.call_llm_with_retry", new_callable=AsyncMock)
+    @patch("api.detect.environment_quality.call_llm", new_callable=AsyncMock)
     async def test_detect_environment_polluted(self, mock_llm, mock_location):
         """Тест обнаружения загрязненной среды."""
         mock_location.return_value = {}
@@ -168,7 +168,7 @@ class TestEnvironmentDetector:
 
     @pytest.mark.asyncio
     @patch("api.detect.environment_quality.extract_location_and_time")
-    @patch("api.detect.environment_quality.call_llm_with_retry", new_callable=AsyncMock)
+    @patch("api.detect.environment_quality.call_llm", new_callable=AsyncMock)
     async def test_detect_environment_undefined(self, mock_llm, mock_location):
         """Тест обработки неопределенных данных."""
         mock_location.return_value = {}
@@ -216,7 +216,7 @@ class TestEnvironmentDetector:
 
     @pytest.mark.asyncio
     @patch("api.detect.environment_quality.extract_location_and_time")
-    @patch("api.detect.environment_quality.call_llm_with_retry", new_callable=AsyncMock)
+    @patch("api.detect.environment_quality.call_llm", new_callable=AsyncMock)
     async def test_detect_environment_invalid_json(self, mock_llm, mock_location):
         """Тест обработки невалидного JSON."""
         mock_location.return_value = {}
@@ -230,7 +230,7 @@ class TestEnvironmentDetector:
 
     @pytest.mark.asyncio
     @patch("api.detect.environment_quality.extract_location_and_time")
-    @patch("api.detect.environment_quality.call_llm_with_retry", new_callable=AsyncMock)
+    @patch("api.detect.environment_quality.call_llm", new_callable=AsyncMock)
     async def test_detect_environment_exception(self, mock_llm, mock_location):
         """Тест обработки исключения."""
         mock_location.return_value = {}
@@ -244,7 +244,7 @@ class TestEnvironmentDetector:
 
     @pytest.mark.asyncio
     @patch("api.detect.environment_quality.extract_location_and_time")
-    @patch("api.detect.environment_quality.call_llm_with_retry", new_callable=AsyncMock)
+    @patch("api.detect.environment_quality.call_llm", new_callable=AsyncMock)
     async def test_detect_environment_symbiosis_factors(self, mock_llm, mock_location):
         """Тест извлечения факторов для симбиозов."""
         mock_location.return_value = {}
