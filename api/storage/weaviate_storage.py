@@ -109,39 +109,51 @@ class WeaviateStorage:
         possible_hosts = list(set(possible_hosts))
         log(f"🔍 Проверяем возможные хосты Weaviate: {possible_hosts}")
 
-        # Парсим gRPC URL или вычисляем из HTTP URL
+        # Всегда вычисляем gRPC параметры из HTTP URL для каждого хоста
+        # Если WEAVIATE_GRPC_URL задан, используем его порт, но хост берем из цикла
         weaviate_grpc_url = WEAVIATE_GRPC_URL
+        default_grpc_port = None
+        if weaviate_grpc_url:
+            # Если задан явный gRPC URL, извлекаем порт из него
+            grpc_parts = weaviate_grpc_url.split(":")
+            default_grpc_port = int(grpc_parts[1]) if len(grpc_parts) > 1 else 50051
 
         connection_success = False
         last_error: Optional[Exception] = None
+        successful_http_host = base_host  # Fallback значение
+        successful_grpc_host = "localhost"  # Fallback значение
 
+        # Сначала пробуем подключиться через gRPC (приоритет), затем через HTTP (fallback)
         # Пробуем подключиться к каждому возможному хосту
         for http_host in possible_hosts:
             try:
-                if not weaviate_grpc_url:
-                    # Вычисляем gRPC URL из HTTP URL (предполагаем стандартные порты)
-                    # Для Weaviate стандартный HTTP порт 8080, gRPC 50051
-                    grpc_host = http_host
-                    grpc_port = 50051 if http_port == 8080 else http_port + 1  # 8080 -> 50051, иначе +1
-                    weaviate_grpc_url = f"{grpc_host}:{grpc_port}"
+                # Всегда вычисляем gRPC параметры для текущего хоста
+                # gRPC хост = HTTP хост (тот же сервер)
+                grpc_host = http_host
 
-                grpc_parts = weaviate_grpc_url.split(":")
-                grpc_host = grpc_parts[0] if grpc_parts else "localhost"
-                grpc_port = int(grpc_parts[1]) if len(grpc_parts) > 1 else 50051
+                # gRPC порт: используем заданный из WEAVIATE_GRPC_URL или вычисляем из HTTP порта
+                if default_grpc_port is not None:
+                    # Используем порт из WEAVIATE_GRPC_URL
+                    grpc_port = default_grpc_port
+                else:
+                    # Вычисляем gRPC порт из HTTP порта (стандартные порты: HTTP 8080 -> gRPC 50051)
+                    grpc_port = 50051 if http_port == 8080 else http_port + 1
+
                 grpc_secure = False  # gRPC обычно не использует SSL во внутренней сети
 
                 log(
-                    f"🔗 Пробуем подключиться к Weaviate - HTTP: {http_host}:{http_port} (secure: {http_secure}), gRPC: {grpc_host}:{grpc_port} (secure: {grpc_secure})"
+                    f"🔗 Пробуем подключиться к Weaviate - ПРИОРИТЕТ gRPC: {grpc_host}:{grpc_port} (secure: {grpc_secure}), HTTP fallback: {http_host}:{http_port} (secure: {http_secure})"
                 )
 
                 # Создаем подключение с приоритетом gRPC для векторных операций
+                # gRPC параметры указаны первыми, чтобы клиент попробовал их использовать первыми
                 connection_params = weaviate.connect.base.ConnectionParams.from_params(
-                    http_host=http_host,
-                    http_port=http_port,
-                    http_secure=http_secure,
-                    grpc_host=grpc_host,
+                    grpc_host=grpc_host,  # gRPC первым - приоритет
                     grpc_port=grpc_port,
                     grpc_secure=grpc_secure,
+                    http_host=http_host,  # HTTP как fallback
+                    http_port=http_port,
+                    http_secure=http_secure,
                 )
 
                 # Настраиваем таймауты согласно best practices
@@ -169,7 +181,12 @@ class WeaviateStorage:
                 log("✅ client.connect() успешен")
 
                 connection_success = True
-                log(f"✅ Подключено к Weaviate на {http_host}:{http_port}")
+                # Сохраняем успешные параметры подключения для дальнейшего использования
+                successful_http_host = http_host
+                successful_grpc_host = grpc_host
+                log(
+                    f"✅ Подключено к Weaviate через gRPC (приоритет) на {grpc_host}:{grpc_port}, HTTP fallback: {http_host}:{http_port}"
+                )
                 break
 
             except weaviate.exceptions.WeaviateConnectionError as e:
@@ -192,33 +209,11 @@ class WeaviateStorage:
             else:
                 raise RuntimeError("Не удалось подключиться к Weaviate: все хосты недоступны")
 
-        # Создаем подключение с приоритетом gRPC для векторных операций
-        connection_params = weaviate.connect.base.ConnectionParams.from_params(
-            http_host=http_host,
-            http_port=http_port,
-            http_secure=http_secure,
-            grpc_host=grpc_host,
-            grpc_port=grpc_port,
-            grpc_secure=grpc_secure,
-        )
-
-        # Если gRPC предпочтителен, настраиваем клиент для использования gRPC по умолчанию
-        client_kwargs = {
-            "connection_params": connection_params,
-            "auth_client_secret": auth_config,
-        }
-
-        self.client = weaviate.WeaviateClient(**client_kwargs)  # type: ignore[arg-type]
-
-        # Проверяем подключение и создаем схему
+        # Клиент уже создан и подключен в цикле выше, просто получаем метаданные и настраиваем схему
         try:
-            log("🔌 Вызываем client.connect()...")
-            self.client.connect()
-            log("✅ client.connect() успешен")
-
             log("📊 Получаем метаданные...")
             meta = self.client.get_meta()
-            log(f"✅ Подключено к Weaviate {meta.get('version', 'unknown')} на {weaviate_url}")
+            log(f"✅ Подключено к Weaviate {meta.get('version', 'unknown')} на {successful_http_host}:{http_port}")
 
             # Схема: встроенная AutoSchema Weaviate или ручное управление
             if WEAVIATE_USE_BUILTIN_AUTOSCHEMA:

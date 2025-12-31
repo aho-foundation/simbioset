@@ -7,7 +7,7 @@
   gap: 1.5rem;
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background: #f8fafc;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border-radius: 0.5rem;
 }
 
@@ -66,7 +66,7 @@
 .createForm {
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background: #f8fafc;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border-radius: 0.5rem;
   display: flex;
   flex-direction: column;
@@ -108,7 +108,7 @@
 
 .submitButton {
   padding: 0.5rem 1rem;
-  background: #3b82f6;
+  background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
   color: white;
   border: none;
   border-radius: 0.5rem;
@@ -126,7 +126,7 @@
 .analysisResult {
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background: #f0fdf4;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
   border: 1px solid #86efac;
   border-radius: 0.5rem;
 }

@@ -6,7 +6,7 @@ Based on existing ConceptNode models from api/kb/models.py.
 
 from typing import Any, Literal, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class Contributor(BaseModel):
@@ -120,8 +120,8 @@ class CrowdsourcedProject(BaseProject):
     ideas: list[Idea] = Field(default_factory=list, description="List of user-submitted ideas")
     contributors: list[Contributor] = Field(default_factory=list, description="Project contributors")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "cs-proj-001",
                 "title": "Open Source AI Assistant",
@@ -135,6 +135,7 @@ class CrowdsourcedProject(BaseProject):
                 "contributors": [],
             }
         }
+    )
 
 
 class CrowdfundedProject(BaseProject):
@@ -150,8 +151,8 @@ class CrowdfundedProject(BaseProject):
     backers: list[Backer] = Field(default_factory=list, description="Project backers")
     funding_tiers: list[FundingTier] = Field(default_factory=list, description="Available funding tiers")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "cf-proj-001",
                 "title": "Eco-Friendly Drone",
@@ -169,6 +170,7 @@ class CrowdfundedProject(BaseProject):
                 "funding_tiers": [],
             }
         }
+    )
 
 
 # Integration models for knowledge base compatibility

@@ -20,7 +20,7 @@
 .storageNode {
   text-align: center;
   padding: 1.5rem;
-  background: white;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
   border-radius: 1rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   border: 2px solid #e2e8f0;
@@ -66,7 +66,7 @@
 }
 
 .statCard {
-  background: white;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
   padding: 1rem;
   border-radius: 0.75rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -101,18 +101,8 @@
   height: 1.5rem;
 }
 
-.autoschemaActive {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border-color: #86efac;
-}
-
 .autoschemaActive .statIcon {
   color: #16a34a;
-}
-
-.autoschemaInactive {
-  background: linear-gradient(135deg, #fef3f2 0%, #fee2e2 100%);
-  border-color: #fca5a5;
 }
 
 .autoschemaInactive .statIcon {
@@ -121,7 +111,7 @@
 
 .dataTypesVisualization {
   width: 100%;
-  background: white;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
   padding: 1.5rem;
   border-radius: 1rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -205,7 +195,7 @@
 .message {
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background: #f0f9ff;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
   border: 1px solid #bae6fd;
   border-radius: 0.5rem;
   color: #0369a1;
@@ -249,7 +239,7 @@
 .autoschemaNote {
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background: #f0fdf4;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
   border: 1px solid #86efac;
   border-radius: 0.5rem;
   color: #166534;
@@ -265,7 +255,7 @@
 .typeGroup {
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background: #f8fafc;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border-radius: 0.5rem;
 }
 
@@ -293,7 +283,7 @@
 
 .propertyCard {
   padding: 0.75rem;
-  background: white;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 0.5rem;
   transition: all 0.2s ease;
