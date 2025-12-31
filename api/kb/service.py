@@ -40,6 +40,28 @@ class KBService:
         """
         self.repository = repository
 
+    def _validate_node_data(self, node_data: dict) -> dict:
+        """Validate and fix node data before creating ConceptNode.
+
+        Args:
+            node_data: Raw node data from repository
+
+        Returns:
+            Validated and fixed node data
+        """
+        # Ensure content is not empty
+        if not node_data.get("content", "").strip():
+            node_data["content"] = f"Узел {node_data.get('id', 'без ID')}"
+
+        # Ensure required fields have defaults
+        node_data.setdefault("sources", [])
+        node_data.setdefault("childrenIds", [])
+        node_data.setdefault("type", "message")
+        node_data.setdefault("category", "neutral")
+        node_data.setdefault("position", {"x": 0.0, "y": 0.0, "z": 0.0})
+
+        return node_data
+
     def add_concept(
         self,
         parent_id: str | None,
@@ -101,7 +123,7 @@ class KBService:
         }
 
         created = self.repository.create(node_data)
-        return ConceptNode(**created)
+        return ConceptNode(**self._validate_node_data(created))
 
     def get_node_with_context(
         self,
@@ -132,7 +154,7 @@ class KBService:
         if not node_data:
             return None
 
-        node = ConceptNode(**node_data)
+        node = ConceptNode(**self._validate_node_data(node_data))
         parent = None
         children = []
         siblings = []
@@ -140,13 +162,13 @@ class KBService:
         if include_parent and node.parentId:
             parent_data = nodes_dict.get(node.parentId)
             if parent_data:
-                parent = ConceptNode(**parent_data)
+                parent = ConceptNode(**self._validate_node_data(parent_data))
 
         if include_children:
             for child_id in node.childrenIds[:50]:
                 child_data = nodes_dict.get(child_id)
                 if child_data:
-                    children.append(ConceptNode(**child_data))
+                    children.append(ConceptNode(**self._validate_node_data(child_data)))
 
         if include_siblings and node.parentId:
             parent_data = nodes_dict.get(node.parentId)
@@ -155,7 +177,7 @@ class KBService:
                     if sibling_id != node_id:
                         sibling_data = nodes_dict.get(sibling_id)
                         if sibling_data:
-                            siblings.append(ConceptNode(**sibling_data))
+                            siblings.append(ConceptNode(**self._validate_node_data(sibling_data)))
 
         metadata = {
             "childrenCount": len(node.childrenIds),
@@ -202,7 +224,7 @@ class KBService:
                     id=root_id,
                     parentId=None,
                     childrenIds=[],
-                    content="",
+                    content="Начало сессии",
                     sources=[],
                     timestamp=int(datetime.now().timestamp() * 1000),
                     type="message",
@@ -231,7 +253,7 @@ class KBService:
                     id="empty",
                     parentId=None,
                     childrenIds=[],
-                    content="",
+                    content="База знаний пуста",
                     sources=[],
                     timestamp=int(datetime.now().timestamp() * 1000),
                     type="message",
@@ -329,8 +351,9 @@ class KBService:
             if node_type and node_data.get("type") != node_type:
                 return
 
-            # Добавляем узел в результат
-            nodes.append(ConceptNode(**node_data))
+            # Добавляем узел в результат (с валидацией)
+            validated_data = self._validate_node_data(node_data)
+            nodes.append(ConceptNode(**validated_data))
 
             # Ранняя остановка: если собрано достаточно узлов, не обходим дальше
             if len(nodes) >= target_count:
@@ -431,10 +454,10 @@ class KBService:
 
         if not update_dict:
             node_data = self.repository.get_by_id(node_id)
-            return ConceptNode(**node_data) if node_data else None
+            return ConceptNode(**self._validate_node_data(node_data)) if node_data else None
 
         updated = self.repository.update(node_id, update_dict)
-        return ConceptNode(**updated) if updated else None
+        return ConceptNode(**self._validate_node_data(updated)) if updated else None
 
     def delete_node(self, node_id: str, cascade: bool = True) -> DeleteResponse:
         """
@@ -541,7 +564,7 @@ class KBService:
         node_data = self.repository.get_by_id(node_id)
         if not node_data:
             return None
-        return ConceptNode(**node_data)
+        return ConceptNode(**self._validate_node_data(node_data))
 
     def get_root(self) -> ConceptNode | None:
         """Get the root node of the tree.
@@ -559,7 +582,7 @@ class KBService:
         nodes = self.repository.get_all()
         for node in nodes:
             if node.get("parentId") is None:
-                return ConceptNode(**node)
+                return ConceptNode(**self._validate_node_data(node))
         return None
 
     def set_selected(self, node_id: str, selected: bool) -> None:
@@ -697,7 +720,7 @@ class KBService:
         if node_data.get("parentId") is not None:
             return None
 
-        return ConceptNode(**node_data)
+        return ConceptNode(**self._validate_node_data(node_data))
 
     def add_source(self, concept_id: str, source: dict) -> Source:
         """Add a source to a concept node.

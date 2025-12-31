@@ -62,6 +62,13 @@
   - Weaviate подключается асинхронно после успешного старта FAISS
 
 ### Fixed
+- **Knowledge Base**: Исправлена ошибка валидации Pydantic для ConceptNode
+  - Добавлена валидация и исправление пустых content полей
+  - Пустые content заменяются на осмысленный текст ("Узел без ID", "База знаний пуста")
+  - Все места создания ConceptNode теперь используют валидацию
+  - Предотвращены ошибки "String should have at least 1 character"
+
+### Fixed
 - **Linting**: Исправлено предупреждение biome линтера
   - Заменен тип `any` на `JSX.Element` для компонентов иконок в SchemaViewer
 - **TypeScript**: Исправлены ошибки типизации в weaviate_storage.py
