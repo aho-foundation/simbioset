@@ -6,9 +6,17 @@
 ### Fixed
 - **Playwright browser installation in production**: Исправлена установка браузеров Playwright в Docker production stage
   - Браузеры теперь всегда устанавливаются в production stage для гарантированной работы crawl4ai
-  - Используется пакет `playwright` вместо `@playwright/test` для runtime
-  - Улучшена проверка установки браузеров с верификацией наличия chromium
-  - Исправлен путь установки браузеров в `/app/.cache/ms-playwright`
+  - Используется пакет `playwright` с `--save` для сохранения в node_modules
+  - Улучшена проверка установки браузеров с детальной верификацией наличия chromium executable
+  - Добавлена проверка наличия playwright в node_modules после установки
+  - Исправлен порядок операций: системные зависимости устанавливаются перед копированием node_modules
+  - Исправлен путь установки браузеров в `/app/.cache/ms-playwright` с переменной окружения `PLAYWRIGHT_BROWSERS_PATH`
+- **crawl4ai Playwright browser path configuration**: Исправлена инициализация AsyncWebCrawler с явным указанием пути к браузеру
+  - Добавлена функция `_find_chromium_executable()` для автоматического поиска chromium executable
+  - Используется `BrowserConfig` с параметром `playwright_browser_path` для явного указания пути к браузеру
+  - Установка переменной окружения `PLAYWRIGHT_BROWSERS_PATH` перед инициализацией crawler
+  - Поддержка различных путей к chromium executable (chrome-linux64, chrome-linux, рекурсивный поиск)
+  - Улучшено логирование для диагностики проблем с браузерами
 
 ## [0.4.3] - 2025-12-30
 

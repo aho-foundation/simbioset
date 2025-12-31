@@ -26,7 +26,7 @@
     "terser": "^5.44.1",
     "vite": "^7.3.0",
     "vite-plugin-solid": "^2.11.10",
-    "zod": "^4.2.1"
+    "zod": "^4.3.2"
   },
   "dependencies": {
     "@solidjs/router": "^0.15.4",

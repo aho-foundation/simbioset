@@ -130,10 +130,6 @@ RUN apt-get update && apt-get install -y curl || echo "curl already available"
 # Copy Python virtual environment from python-deps stage
 COPY --from=python-deps /opt/venv /opt/venv
 
-# Copy Node.js runtime deps and built assets
-COPY --from=node-deps /app/node_modules ./node_modules
-COPY package.json package-lock.json* ./
-
 # Install Playwright browsers for crawl4ai (required in production)
 # Устанавливаем системные зависимости для Playwright
 RUN apt-get update && apt-get install -y \
@@ -153,17 +149,38 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     || echo "Some packages may already be installed"
 
+# Copy Node.js runtime deps and built assets
+COPY --from=node-deps /app/node_modules ./node_modules
+COPY package.json package-lock.json* ./
+
 # Install Playwright browsers for crawl4ai (always install in production to ensure availability)
+# Устанавливаем playwright как зависимость, чтобы он был доступен в runtime
 RUN mkdir -p /app/.cache/ms-playwright && \
-    echo "Installing Playwright chromium browser for crawl4ai..." && \
-    npm install playwright --no-save --no-audit --no-fund && \
+    echo "Installing Playwright for crawl4ai..." && \
+    npm install playwright --save --no-audit --no-fund && \
+    echo "Installing Playwright chromium browser..." && \
     PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright npx playwright install chromium && \
     echo "✅ Playwright chromium browser installed" && \
-    find /app/.cache/ms-playwright -maxdepth 1 -type d -name "chromium-*" | head -1 | xargs test -d && \
-    echo "✅ Chromium browser verified" && \
+    echo "Verifying chromium browser installation..." && \
+    if find /app/.cache/ms-playwright -maxdepth 1 -type d -name "chromium-*" 2>/dev/null | head -1 | xargs test -d 2>/dev/null; then \
+        echo "✅ Chromium browser verified"; \
+        CHROMIUM_DIR=$(find /app/.cache/ms-playwright -maxdepth 1 -type d -name "chromium-*" | head -1); \
+        echo "Chromium directory: $CHROMIUM_DIR"; \
+        if [ -f "$CHROMIUM_DIR/chrome-linux64/chrome" ] || [ -f "$CHROMIUM_DIR/chrome-linux/chrome" ]; then \
+            echo "✅ Chromium executable found"; \
+        else \
+            echo "⚠️ Chromium executable not found, listing directory:"; \
+            find "$CHROMIUM_DIR" -type f -name "chrome" 2>/dev/null | head -5; \
+        fi; \
+    else \
+        echo "❌ Chromium browser not found!"; \
+        exit 1; \
+    fi && \
     echo "Playwright browsers location:" && \
     ls -la /app/.cache/ms-playwright/ && \
-    find /app/.cache/ms-playwright -maxdepth 1 -type d | head -5 && \
+    find /app/.cache/ms-playwright -maxdepth 2 -type d | head -10 && \
+    echo "Verifying playwright is in node_modules:" && \
+    test -d node_modules/playwright && echo "✅ playwright found in node_modules" || echo "❌ playwright not in node_modules" && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create directory for venv symlink (symlink will be created at runtime)

@@ -1,13 +1,61 @@
 """Web search module for retrieving context from the internet."""
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from ddgs import DDGS
-from crawl4ai import AsyncWebCrawler
+from crawl4ai import AsyncWebCrawler, BrowserConfig
 import logging
 import asyncio
 import aiohttp
+import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def _find_chromium_executable() -> Optional[str]:
+    """
+    Find chromium executable in Playwright browsers directory.
+
+    Returns:
+        Path to chromium executable or None if not found
+    """
+    browsers_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "/app/.cache/ms-playwright")
+    browsers_dir = Path(browsers_path)
+
+    if not browsers_dir.exists():
+        logger.warning(f"Playwright browsers directory not found: {browsers_dir}")
+        return None
+
+    # Ищем директорию chromium-*
+    chromium_dirs = list(browsers_dir.glob("chromium-*"))
+    if not chromium_dirs:
+        logger.warning(f"No chromium directories found in {browsers_dir}")
+        return None
+
+    chromium_dir = chromium_dirs[0]
+
+    # Ищем исполняемый файл chrome в разных возможных местах
+    possible_paths = [
+        chromium_dir / "chrome-linux64" / "chrome",
+        chromium_dir / "chrome-linux" / "chrome",
+        chromium_dir / "chrome" / "chrome",
+    ]
+
+    for path in possible_paths:
+        if path.exists() and path.is_file():
+            logger.info(f"Found chromium executable: {path}")
+            return str(path.absolute())
+
+    # Если не нашли в стандартных местах, ищем рекурсивно
+    chrome_files = list(chromium_dir.rglob("chrome"))
+    if chrome_files:
+        chrome_path = chrome_files[0]
+        if chrome_path.is_file():
+            logger.info(f"Found chromium executable (recursive search): {chrome_path}")
+            return str(chrome_path.absolute())
+
+    logger.warning(f"Chromium executable not found in {chromium_dir}")
+    return None
 
 
 class WebSearchService:
@@ -15,7 +63,35 @@ class WebSearchService:
 
     def __init__(self):
         """Initialize the web search service."""
-        self.crawler = AsyncWebCrawler()
+        # Настраиваем путь к браузерам Playwright
+        browsers_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "/app/.cache/ms-playwright")
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+
+        # Находим путь к chromium executable
+        chromium_path = _find_chromium_executable()
+
+        # Создаем конфигурацию браузера
+        browser_config = None
+        if chromium_path:
+            browser_config = BrowserConfig(
+                browser_type="chromium",
+                playwright_browser_path=chromium_path,
+                headless=True,
+                verbose=False,
+            )
+            logger.info(f"Using chromium browser at: {chromium_path}")
+        else:
+            logger.warning(
+                "Chromium executable not found, using default Playwright configuration. "
+                "This may fail if browsers are not installed."
+            )
+            browser_config = BrowserConfig(
+                browser_type="chromium",
+                headless=True,
+                verbose=False,
+            )
+
+        self.crawler = AsyncWebCrawler(config=browser_config)
         self._session: aiohttp.ClientSession | None = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
