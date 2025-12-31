@@ -80,16 +80,30 @@ class WeaviateStorage:
         http_port = int(url_parts[1]) if len(url_parts) > 1 else 8080
         http_secure = weaviate_url.startswith("https://")
 
-        # Возможные варианты DNS имен для Dokku
+        # Проверяем, является ли base_host IP адресом
+        import ipaddress
+        is_ip_address = False
+        try:
+            ipaddress.ip_address(base_host)
+            is_ip_address = True
+        except ValueError:
+            pass
+
+        # Возможные варианты хостов для Dokku
         possible_hosts = []
-        if base_host != "localhost":
-            # Разбираем base_host на компоненты
+        
+        # Если это IP адрес, используем его напрямую
+        if is_ip_address:
+            possible_hosts.append(base_host)
+            log(f"🔍 Обнаружен IP адрес: {base_host}, используем напрямую")
+        elif base_host != "localhost":
+            # Разбираем base_host на компоненты для DNS имен
             host_parts = base_host.split(".")
             if len(host_parts) >= 2:
                 service_name = host_parts[0]  # 'weaviate'
                 app_name = host_parts[1] if len(host_parts) > 1 else None  # 'web'
 
-                # Генерируем варианты
+                # Генерируем варианты DNS имен
                 possible_hosts.extend(
                     [
                         base_host,  # weaviate.web.1
@@ -101,8 +115,8 @@ class WeaviateStorage:
             else:
                 possible_hosts.append(base_host)
 
-        # Добавляем localhost как fallback
-        if "localhost" not in possible_hosts:
+        # Добавляем localhost как fallback только если не IP
+        if not is_ip_address and "localhost" not in possible_hosts:
             possible_hosts.append("localhost")
 
         # Убираем дубликаты

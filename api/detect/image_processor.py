@@ -35,7 +35,7 @@ def _get_openai_client() -> AsyncOpenAI:
         _openai_client = AsyncOpenAI(
             base_url=f"{LLM_PROXY_URL}/v1",
             api_key=LLM_PROXY_TOKEN or "not-needed",
-            timeout=120.0,
+            timeout=150.0,
         )
     return _openai_client
 

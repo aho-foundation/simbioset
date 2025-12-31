@@ -3,6 +3,13 @@
 
 ## [0.4.4] - 2025-12-31
 
+### Fixed
+- **Weaviate schema endpoint**: Исправлена обработка случая, когда коллекция не существует
+  - Добавлена проверка существования коллекции перед получением конфигурации
+  - Если коллекция не существует и AutoSchema выключена, схема создается автоматически
+  - Если AutoSchema включена, возвращается понятное сообщение о том, что коллекция будет создана при первом сохранении
+  - Улучшена обработка ошибок UnexpectedStatusCodeError от Weaviate API
+
 ### Refactored
 - **Рефакторинг organism_detector и ecosystem_scaler**: Создана общая функция `extract_structured_data` в `api/detect/entity_extractor.py`
   - Устранено дублирование кода между `organism_detector.py` и `ecosystem_scaler.py`

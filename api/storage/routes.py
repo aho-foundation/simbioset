@@ -121,6 +121,31 @@ async def get_schema(request: Request):
         if is_weaviate:
             try:
                 from api.settings import WEAVIATE_CLASS_NAME, WEAVIATE_USE_BUILTIN_AUTOSCHEMA
+                from weaviate.exceptions import UnexpectedStatusCodeError
+
+                # Проверяем, существует ли коллекция
+                collection_exists = storage.client.collections.exists(WEAVIATE_CLASS_NAME)
+
+                if not collection_exists:
+                    # Если AutoSchema включена, коллекция создастся автоматически при первом сохранении
+                    # Если выключена, создаем схему вручную
+                    if not WEAVIATE_USE_BUILTIN_AUTOSCHEMA:
+                        from api.storage.weaviate_schema import create_schema_if_not_exists
+                        create_schema_if_not_exists(storage.client)
+                        # Проверяем еще раз после создания
+                        collection_exists = storage.client.collections.exists(WEAVIATE_CLASS_NAME)
+                    
+                    # Если коллекция все еще не существует (AutoSchema включена), возвращаем информацию
+                    if not collection_exists:
+                        return {
+                            "storage_type": "weaviate",
+                            "collection_name": WEAVIATE_CLASS_NAME,
+                            "autoschema_enabled": WEAVIATE_USE_BUILTIN_AUTOSCHEMA,
+                            "collection_exists": False,
+                            "message": f"Collection '{WEAVIATE_CLASS_NAME}' does not exist yet. It will be created automatically when first data is saved (AutoSchema enabled).",
+                            "properties": [],
+                            "total_properties": 0,
+                        }
 
                 # Получаем информацию о коллекции
                 collection = storage.client.collections.get(WEAVIATE_CLASS_NAME)
@@ -144,8 +169,27 @@ async def get_schema(request: Request):
                     "storage_type": "weaviate",
                     "collection_name": WEAVIATE_CLASS_NAME,
                     "autoschema_enabled": WEAVIATE_USE_BUILTIN_AUTOSCHEMA,
+                    "collection_exists": True,
                     "properties": properties,
                     "total_properties": len(properties),
+                }
+            except UnexpectedStatusCodeError as e:
+                # Обрабатываем 404 и другие HTTP ошибки отдельно
+                if "404" in str(e) or "not found" in str(e).lower():
+                    return {
+                        "storage_type": "weaviate",
+                        "collection_name": WEAVIATE_CLASS_NAME,
+                        "autoschema_enabled": WEAVIATE_USE_BUILTIN_AUTOSCHEMA,
+                        "collection_exists": False,
+                        "message": f"Collection '{WEAVIATE_CLASS_NAME}' does not exist yet. It will be created automatically when first data is saved.",
+                        "properties": [],
+                        "total_properties": 0,
+                    }
+                # Для других HTTP ошибок возвращаем детали
+                return {
+                    "storage_type": "weaviate",
+                    "error": str(e),
+                    "autoschema_enabled": WEAVIATE_USE_BUILTIN_AUTOSCHEMA,
                 }
             except Exception as e:
                 import traceback

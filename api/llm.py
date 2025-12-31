@@ -37,7 +37,7 @@ def _get_openai_client() -> AsyncOpenAI:
         _openai_client = AsyncOpenAI(
             base_url=f"{LLM_PROXY_URL}/v1",
             api_key=LLM_PROXY_TOKEN or "not-needed",  # OpenAI SDK требует api_key, даже если не используется
-            timeout=120.0,
+            timeout=200.0,
         )
     return _openai_client
 
@@ -47,7 +47,7 @@ def _get_http_session() -> aiohttp.ClientSession:
     global _http_session
     if _http_session is None:
         # Увеличиваем таймаут для длинных запросов к LLM
-        timeout = aiohttp.ClientTimeout(total=180.0, connect=30.0)
+        timeout = aiohttp.ClientTimeout(total=300.0, connect=30.0)
         _http_session = aiohttp.ClientSession(
             timeout=timeout,
         )
