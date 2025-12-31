@@ -1,14 +1,16 @@
 """
 Модуль для запроса текущей погоды по городу.
 
-Использует бесплатный API wttr.in для получения актуальных данных о погоде.
+Использует парсинг Gismeteo для получения актуальных данных о погоде.
 """
 
 import logging
+import re
 from typing import Dict, Any, Optional
 from datetime import datetime
 
 import aiohttp
+from bs4 import BeautifulSoup
 from api.detect.localize import geocode
 from api.logger import root_logger
 
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 async def get_weather(city: str, time_reference: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    Получает текущую погоду для указанного города.
+    Получает текущую погоду для указанного города через парсинг Gismeteo.
 
     Args:
         city: Название города
@@ -46,10 +48,7 @@ async def get_weather(city: str, time_reference: Optional[str] = None) -> Option
         return None
 
     # Проверяем, относится ли время к текущему моменту
-    # Если время не указано - запрашиваем текущую погоду
     if time_reference:
-        import re
-
         current_time_indicators = ["сегодня", "сейчас", "нынче", "текущий момент"]
         past_time_indicators = ["вчера", "давно", "давеча", "раньше"]
         future_time_indicators = ["завтра", "позже"]
@@ -70,60 +69,172 @@ async def get_weather(city: str, time_reference: Optional[str] = None) -> Option
             ):
                 return None
             # Если время указано как сезон без года (например, "летом", "зимой") - не запрашиваем
-            # так как это может быть не текущий сезон
             return None
 
     try:
-        # Получаем координаты города для более точного запроса
-        coordinates = geocode(city)
-        if coordinates:
-            lat, lon = coordinates
-            # Используем координаты для более точного запроса (формат @lat,lon)
-            url = f"https://wttr.in/@{lat},{lon}?format=j1&lang=ru"
-        else:
-            # Используем название города (URL-кодируем для безопасности)
-            import urllib.parse
+        # Ищем город на Gismeteo через поиск
+        import urllib.parse
 
-            encoded_city = urllib.parse.quote(city)
-            url = f"https://wttr.in/{encoded_city}?format=j1&lang=ru"
+        encoded_city = urllib.parse.quote(city)
+        search_url = f"https://www.gismeteo.ru/search/{encoded_city}/"
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as response:
-                if response.status == 200:
-                    data = await response.json()
+            # Устанавливаем User-Agent для избежания блокировок
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
 
-                    # Парсим данные из ответа wttr.in
-                    current = data.get("current_condition", [{}])[0]
-                    if not current:
+            async with session.get(search_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status != 200:
+                    log(f"Gismeteo поиск недоступен: статус {response.status}")
+                    return None
+
+                html = await response.text()
+                soup = BeautifulSoup(html, "html.parser")
+
+                # Ищем ссылку на страницу погоды города
+                # Gismeteo использует ссылки вида /weather-city-{id}/
+                city_link = None
+                for link in soup.find_all("a", href=True):
+                    href = link.get("href", "")
+                    link_text = link.get_text().strip().lower()
+                    # Ищем ссылки на погоду и проверяем, что текст ссылки содержит название города
+                    if "/weather-" in href and city.lower() in link_text:
+                        city_link = href
+                        break
+
+                # Если не нашли по тексту, пробуем первую ссылку на погоду
+                if not city_link:
+                    for link in soup.find_all("a", href=True):
+                        href = link.get("href", "")
+                        if "/weather-" in href:
+                            city_link = href
+                            break
+
+                if not city_link:
+                    log(f"Не найдена ссылка на погоду для {city}")
+                    return None
+
+                # Если ссылка относительная, делаем её абсолютной
+                if city_link.startswith("/"):
+                    city_link = f"https://www.gismeteo.ru{city_link}"
+
+                log(f"Найдена ссылка на погоду: {city_link}")
+
+                # Получаем страницу с погодой
+                async with session.get(
+                    city_link, headers=headers, timeout=aiohttp.ClientTimeout(total=10)
+                ) as weather_response:
+                    if weather_response.status != 200:
+                        log(f"Страница погоды недоступна: статус {weather_response.status}")
                         return None
 
+                    weather_html = await weather_response.text()
+                    weather_soup = BeautifulSoup(weather_html, "html.parser")
+
+                    # Парсим данные о погоде
+                    temperature = "N/A"
+                    condition = "N/A"
+                    humidity = "N/A"
+                    wind_speed = "N/A"
+                    wind_direction = "N/A"
+                    pressure = "N/A"
+                    visibility = "N/A"
+
+                    # Температура - ищем в различных местах
+                    temp_elem = (
+                        weather_soup.find(class_=re.compile("temp|value|temperature", re.I))
+                        or weather_soup.find(attrs={"data-value": True})
+                        or weather_soup.find("span", class_=re.compile("unit", re.I))
+                        or weather_soup.find("div", class_=re.compile("now.*temp", re.I))
+                    )
+
+                    if temp_elem:
+                        temp_text = temp_elem.get_text().strip()
+                        # Извлекаем число из текста (может быть со знаком минус)
+                        temp_match = re.search(r"-?\d+", temp_text)
+                        if temp_match:
+                            temperature = int(temp_match.group())
+
+                    # Условия (солнечно, пасмурно и т.д.)
+                    condition_elem = (
+                        weather_soup.find(class_=re.compile("condition|weather|description", re.I))
+                        or weather_soup.find(attrs={"title": re.compile("погода|weather", re.I)})
+                        or weather_soup.find("div", class_=re.compile("text|desc", re.I))
+                        or weather_soup.find("span", class_=re.compile("tooltip", re.I))
+                    )
+                    if condition_elem:
+                        condition = condition_elem.get_text().strip()
+                        # Очищаем от лишних символов
+                        condition = re.sub(r"\s+", " ", condition)
+                        if len(condition) > 50:  # Если слишком длинное, обрезаем
+                            condition = condition[:50] + "..."
+
+                    # Влажность
+                    humidity_elem = weather_soup.find(string=re.compile("влажность|humidity", re.I))
+                    if humidity_elem:
+                        parent = humidity_elem.find_parent()
+                        if parent:
+                            value_elem = parent.find(class_=re.compile("value|number", re.I))
+                            if value_elem:
+                                humidity_text = value_elem.get_text().strip()
+                                humidity_match = re.search(r"\d+", humidity_text)
+                                if humidity_match:
+                                    humidity = int(humidity_match.group())
+
+                    # Скорость ветра
+                    wind_elem = weather_soup.find(string=re.compile("ветер|wind", re.I))
+                    if wind_elem:
+                        parent = wind_elem.find_parent()
+                        if parent:
+                            # Ищем скорость ветра
+                            speed_elem = parent.find(class_=re.compile("value|speed|number", re.I))
+                            if speed_elem:
+                                speed_text = speed_elem.get_text().strip()
+                                # Может быть в м/с или км/ч
+                                speed_match = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:м/с|км/ч|мс|кмч)", speed_text, re.I)
+                                if speed_match:
+                                    wind_speed = speed_match.group(1).replace(",", ".")
+                                    # Если в км/ч, конвертируем в м/с
+                                    if "км" in speed_text.lower():
+                                        wind_speed = f"{float(wind_speed) / 3.6:.1f} м/с"
+                                    else:
+                                        wind_speed = f"{wind_speed} м/с"
+
+                            # Ищем направление ветра
+                            dir_elem = parent.find(class_=re.compile("direction|dir", re.I))
+                            if dir_elem:
+                                wind_direction = dir_elem.get_text().strip()
+
+                    # Давление
+                    pressure_elem = weather_soup.find(string=re.compile("давление|pressure", re.I))
+                    if pressure_elem:
+                        parent = pressure_elem.find_parent()
+                        if parent:
+                            value_elem = parent.find(class_=re.compile("value|number", re.I))
+                            if value_elem:
+                                pressure_text = value_elem.get_text().strip()
+                                pressure_match = re.search(r"(\d+(?:[.,]\d+)?)", pressure_text)
+                                if pressure_match:
+                                    pressure = pressure_match.group(1).replace(",", ".")
+
                     weather_data = {
-                        "temperature": current.get("temp_C", "N/A"),
-                        "condition": current.get("weatherDesc", [{}])[0].get("value", "N/A"),
-                        "humidity": current.get("humidity", "N/A"),
-                        "wind_speed": current.get("windspeedKmph", "N/A"),
-                        "wind_direction": current.get("winddir16Point", "N/A"),
-                        "pressure": current.get("pressure", "N/A"),
-                        "visibility": current.get("visibility", "N/A"),
+                        "temperature": temperature,
+                        "condition": condition,
+                        "humidity": humidity,
+                        "wind_speed": wind_speed,
+                        "wind_direction": wind_direction,
+                        "pressure": pressure,
+                        "visibility": visibility,
                         "city": city,
                         "timestamp": datetime.now().isoformat(),
                     }
 
-                    # Форматируем скорость ветра в м/с (wttr.in возвращает в км/ч)
-                    if isinstance(weather_data["wind_speed"], (int, float)):
-                        weather_data["wind_speed"] = f"{weather_data['wind_speed'] / 3.6:.1f} м/с"
-
-                    log(f"✅ Получена погода для {city}: {weather_data['temperature']}°C, {weather_data['condition']}")
+                    log(f"✅ Получена погода через Gismeteo для {city}: {temperature}°C, {condition}")
                     return weather_data
-                else:
-                    logger.warning(f"⚠️ Ошибка при запросе погоды: статус {response.status}")
-                    return None
 
-    except aiohttp.ClientError as e:
-        logger.warning(f"⚠️ Ошибка сети при запросе погоды: {e}")
-        return None
     except Exception as e:
-        logger.warning(f"⚠️ Ошибка при получении погоды: {e}")
+        log(f"Ошибка при получении погоды через Gismeteo: {e}")
         return None
 
 

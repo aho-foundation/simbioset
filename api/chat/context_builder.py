@@ -192,6 +192,11 @@ async def get_weather_context(message: str) -> str:
     - В сообщении указан город
     - Время не указано или относится к текущему моменту
 
+    Использует несколько источников с fallback:
+    1. OpenWeatherMap (если есть API ключ)
+    2. WeatherAPI.com (если есть API ключ)
+    3. Gismeteo парсинг (fallback)
+
     Args:
         message: Текст сообщения пользователя
 
@@ -221,8 +226,8 @@ async def get_weather_context(message: str) -> str:
             logger.debug(f"Погода не получена для {city} (возможно, время относится к прошлому/будущему)")
 
         return ""
-    except Exception as e:
-        logger.warning(f"⚠️ Ошибка при получении погоды для контекста: {e}")
+    except Exception:
+        # Молча игнорируем ошибки - погода не критична
         return ""
 
 

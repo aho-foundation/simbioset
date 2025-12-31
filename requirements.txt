@@ -13,6 +13,7 @@ redis[hiredis]
 ddgs
 crawl4ai
 aiohttp
+beautifulsoup4
 sentence-transformers
 geopy
 Pillow

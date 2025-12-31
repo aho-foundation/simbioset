@@ -131,10 +131,11 @@ async def get_schema(request: Request):
                     # Если выключена, создаем схему вручную
                     if not WEAVIATE_USE_BUILTIN_AUTOSCHEMA:
                         from api.storage.weaviate_schema import create_schema_if_not_exists
+
                         create_schema_if_not_exists(storage.client)
                         # Проверяем еще раз после создания
                         collection_exists = storage.client.collections.exists(WEAVIATE_CLASS_NAME)
-                    
+
                     # Если коллекция все еще не существует (AutoSchema включена), возвращаем информацию
                     if not collection_exists:
                         return {

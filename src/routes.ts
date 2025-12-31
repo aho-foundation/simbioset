@@ -23,7 +23,7 @@ export const routes: RouteDefinition[] = [
     component: lazy(() => import('./pages/KnowledgeTreePage'))
   },
   {
-    path: '/classification',
+    path: '/schema',
     component: lazy(() => import('./pages/ClassificationPage'))
   },
   {

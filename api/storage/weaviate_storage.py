@@ -82,6 +82,7 @@ class WeaviateStorage:
 
         # Проверяем, является ли base_host IP адресом
         import ipaddress
+
         is_ip_address = False
         try:
             ipaddress.ip_address(base_host)
@@ -91,7 +92,7 @@ class WeaviateStorage:
 
         # Возможные варианты хостов для Dokku
         possible_hosts = []
-        
+
         # Если это IP адрес, используем его напрямую
         if is_ip_address:
             possible_hosts.append(base_host)
