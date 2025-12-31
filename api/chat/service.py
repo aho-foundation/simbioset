@@ -189,7 +189,7 @@ class ChatSessionService:
 async def generate_starters() -> List[str]:
     """
     Generates conversation starters for the symbiosis project.
-    
+
     Генерирует новые стартеры через LLM и кеширует их.
     После накопления 250 стартеров в кеше, возвращает только из кеша.
 
@@ -241,7 +241,11 @@ async def generate_starters() -> List[str]:
                 return new_starters
 
         # Fallback на статичные стартеры при ошибке парсинга
-        fallback = ["Что такое симбиоз и симбиосеть?", "Давай вместе исследовать экосистему!", "Как можно улучшать качества биосферы?"]
+        fallback = [
+            "Что такое симбиоз и симбиосеть?",
+            "Давай вместе исследовать экосистему!",
+            "Как можно улучшать качества биосферы?",
+        ]
         cache.update(fallback)
         _STARTERS_CACHE = cache
         _save_starters_cache(cache)
@@ -250,7 +254,11 @@ async def generate_starters() -> List[str]:
     except Exception as e:
         log(f"⚠️ Starters generation failed: {e}")
         # Fallback на статичные стартеры при ошибке
-        fallback = ["Что такое симбиоз и симбиосеть?", "Давай вместе исследовать экосистему!", "Как можно улучшать качества биосферы?"]
+        fallback = [
+            "Что такое симбиоз и симбиосеть?",
+            "Давай вместе исследовать экосистему!",
+            "Как можно улучшать качества биосферы?",
+        ]
         cache.update(fallback)
         _STARTERS_CACHE = cache
         _save_starters_cache(cache)

@@ -1,6 +1,15 @@
 # Changelog
 
 
+## [0.4.4] - 2025-12-31
+
+### Fixed
+- **Playwright browser installation in production**: Исправлена установка браузеров Playwright в Docker production stage
+  - Браузеры теперь всегда устанавливаются в production stage для гарантированной работы crawl4ai
+  - Используется пакет `playwright` вместо `@playwright/test` для runtime
+  - Улучшена проверка установки браузеров с верификацией наличия chromium
+  - Исправлен путь установки браузеров в `/app/.cache/ms-playwright`
+
 ## [0.4.3] - 2025-12-30
 
 ### Added

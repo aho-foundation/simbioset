@@ -113,7 +113,6 @@ async def build_graph_context(
 async def build_context_for_llm(
     session_id: str,
     kb_service: KBService,
-    llm_client,
     location: Optional[str] = None,
     ecosystems: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[Optional[str], str]:
@@ -126,12 +125,13 @@ async def build_context_for_llm(
     Args:
         session_id: ID сессии для получения истории
         kb_service: Сервис для работы с базой знаний
-        llm_client: Клиент для LLM API
         location: Локация для фильтрации контекста (опционально, используется только для дополнительного контекста)
         ecosystems: Список экосистем для фильтрации контекста (опционально, используется только для дополнительного контекста)
 
     Returns:
-        Кортеж из (сводка_старых_сообщений, последние_сообщения)
+        Кортеж из (conversation_summary, recent_messages)
+        - conversation_summary: Всегда None (больше не генерируется)
+        - recent_messages: Последние 50 сообщений в формате строки
     """
     # Получаем все сообщения сессии
     all_messages = kb_service.get_session_messages(session_id)

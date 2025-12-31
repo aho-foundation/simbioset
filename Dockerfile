@@ -134,10 +134,7 @@ COPY --from=python-deps /opt/venv /opt/venv
 COPY --from=node-deps /app/node_modules ./node_modules
 COPY package.json package-lock.json* ./
 
-# Copy Playwright browsers from build-stage (installed during build)
-COPY --from=build-stage /app/.cache/ms-playwright /app/.cache/ms-playwright
-
-# Install Playwright browsers only if missing (fallback for cases where build-stage didn't install)
+# Install Playwright browsers for crawl4ai (required in production)
 # Устанавливаем системные зависимости для Playwright
 RUN apt-get update && apt-get install -y \
     libnss3 \
@@ -154,19 +151,19 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     libatspi2.0-0 \
     libxshmfence1 \
-    || echo "Some packages may already be installed" && \
-    mkdir -p /app/.cache/ms-playwright && \
-    echo "Checking Playwright chromium browser for runtime..." && \
-    if ! find /app/.cache/ms-playwright -maxdepth 1 -type d -name "chromium-*" 2>/dev/null | grep -q .; then \
-        echo "⚠️ Browsers not found, installing Playwright chromium browser..." && \
-        npm install @playwright/test --no-save --no-audit --no-fund && \
-        PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright npx playwright install --with-deps chromium && \
-        npm uninstall @playwright/test; \
-    else \
-        echo "✅ Chromium browser found, skipping installation"; \
-    fi && \
-    echo "Runtime Playwright browsers:" && \
+    || echo "Some packages may already be installed"
+
+# Install Playwright browsers for crawl4ai (always install in production to ensure availability)
+RUN mkdir -p /app/.cache/ms-playwright && \
+    echo "Installing Playwright chromium browser for crawl4ai..." && \
+    npm install playwright --no-save --no-audit --no-fund && \
+    PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright npx playwright install chromium && \
+    echo "✅ Playwright chromium browser installed" && \
+    find /app/.cache/ms-playwright -maxdepth 1 -type d -name "chromium-*" | head -1 | xargs test -d && \
+    echo "✅ Chromium browser verified" && \
+    echo "Playwright browsers location:" && \
     ls -la /app/.cache/ms-playwright/ && \
+    find /app/.cache/ms-playwright -maxdepth 1 -type d | head -5 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create directory for venv symlink (symlink will be created at runtime)
