@@ -5,11 +5,26 @@
 """
 
 from typing import List, Dict, Any
-from api.llm import call_llm
-from api.logger import root_logger
-from pathlib import Path
 
-log = root_logger.debug
+from api.detect.entity_extractor import extract_structured_data
+
+
+# Валидатор для организмов
+def _validate_organism(item: Dict[str, Any]) -> bool:
+    """Проверяет, что объект является валидным организмом."""
+    return isinstance(item, dict) and "name" in item
+
+
+# Нормализатор для организмов
+def _normalize_organism(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Нормализует данные организма."""
+    return {
+        "name": item.get("name", ""),
+        "scientific_name": item.get("scientific_name"),
+        "type": item.get("type", "другое"),
+        "category": item.get("category"),  # Категория для растений, насекомых, птиц
+        "context": item.get("context", ""),
+    }
 
 
 async def detect_organisms(text: str) -> List[Dict[str, Any]]:
@@ -31,17 +46,7 @@ async def detect_organisms(text: str) -> List[Dict[str, Any]]:
             }
         ]
     """
-    # Загружаем промпт из файла
-    prompt_path = Path(__file__).parent.parent / "prompts" / "organism_detector.txt"
-    if not prompt_path.exists():
-        prompt_path = Path("api/prompts/organism_detector.txt")
-
-    try:
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            prompt_template = f.read()
-    except FileNotFoundError:
-        log("⚠️ Промпт organism_detector.txt не найден, используем упрощенный вариант")
-        prompt_template = """Извлеки из текста все упоминания организмов (растения, животные, грибы, бактерии).
+    fallback_prompt = """Извлеки из текста все упоминания организмов (растения, животные, грибы, бактерии).
 
 Текст:
 {text}
@@ -49,38 +54,11 @@ async def detect_organisms(text: str) -> List[Dict[str, Any]]:
 Верни JSON массив объектов с полями: name, scientific_name (опционально), type, context.
 Формат: [{{"name": "...", "type": "...", "context": "..."}}]"""
 
-    # Ограничиваем длину текста для экономии токенов
-    text_limited = text[:2000]
-
-    # Форматируем промпт с данными
-    prompt = prompt_template.replace("{text}", text_limited)
-
-    try:
-        response = await call_llm(prompt)
-        # Парсим JSON ответ
-        import re
-        import json
-
-        json_match = re.search(r"\[.*?\]", response, re.DOTALL)
-        if json_match:
-            organisms = json.loads(json_match.group())
-            # Валидируем структуру
-            valid_organisms = []
-            for org in organisms:
-                if isinstance(org, dict) and "name" in org:
-                    valid_organisms.append(
-                        {
-                            "name": org.get("name", ""),
-                            "scientific_name": org.get("scientific_name"),
-                            "type": org.get("type", "другое"),
-                            "category": org.get("category"),  # Категория для растений, насекомых, птиц
-                            "context": org.get("context", ""),
-                        }
-                    )
-            return valid_organisms
-        else:
-            log(f"⚠️ Не удалось извлечь JSON из ответа LLM: {response}")
-            return []
-    except Exception as e:
-        log(f"⚠️ Ошибка при обнаружении организмов: {e}")
-        return []
+    return await extract_structured_data(
+        text=text,
+        prompt_file="organism_detector.txt",
+        fallback_prompt=fallback_prompt,
+        validator=_validate_organism,
+        normalizer=_normalize_organism,
+        origin="organism_detector",
+    )

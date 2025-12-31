@@ -337,20 +337,30 @@ async def send_chat_message(message_data: ChatMessageCreate, request: Request, r
         ecosystem_context = format_ecosystem_context(ecosystems, location, weather=weather_context)
 
         # Получаем графовый контекст через симбиотические связи
+        # НЕ строим графовый контекст для первых 2 сообщений (стартер + ответ) - это слишком рано
         graph_context = ""
         try:
-            from api.chat.context_builder import build_graph_context
+            # Проверяем количество сообщений в сессии
+            session_messages = service.get_session_messages(actual_session_id)
+            message_count = len(session_messages) if session_messages else 0
 
-            # Используем универсальное хранилище (может быть FAISS или Weaviate)
-            storage = getattr(request.app.state, "storage", None) or getattr(request.app.state, "faiss_storage", None)
-            graph_context = await build_graph_context(
-                message=message_data.message,
-                session_id=actual_session_id,
-                db_manager=request.app.state.db_manager,
-                storage=storage,
-                max_depth=2,
-                max_relationships=10,
-            )
+            # Строим графовый контекст только если в сессии больше 2 сообщений
+            # (стартер + ответ = 2 сообщения, после этого уже можно строить граф)
+            if message_count > 2:
+                from api.chat.context_builder import build_graph_context
+
+                # Используем универсальное хранилище (может быть FAISS или Weaviate)
+                storage = getattr(request.app.state, "storage", None) or getattr(
+                    request.app.state, "faiss_storage", None
+                )
+                graph_context = await build_graph_context(
+                    message=message_data.message,
+                    session_id=actual_session_id,
+                    db_manager=request.app.state.db_manager,
+                    storage=storage,
+                    max_depth=2,
+                    max_relationships=10,
+                )
         except Exception as e:
             print(f"Error building graph context: {e}")
 
