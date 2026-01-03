@@ -401,65 +401,6 @@ async def get_root_node(request: Request) -> ConceptNode:
     return root
 
 
-@router.post("/nodes/{node_id}/select")
-async def set_node_selected(node_id: str, request: Request, selected: bool = True) -> dict:
-    """
-    Set selection state of a node.
-
-    Args:
-        node_id: ID of the node
-        selected: Selection state (default: True)
-
-    Returns:
-        Success response with node ID and selected state
-    """
-    service = get_kb_service(request)
-    service.set_selected(node_id, selected)
-    return {"success": True, "nodeId": node_id, "selected": selected}
-
-
-@router.post("/nodes/{node_id}/toggle-select")
-async def toggle_node_selected(node_id: str, request: Request) -> dict:
-    """
-    Toggle selection state of a node.
-
-    Args:
-        node_id: ID of the node
-
-    Returns:
-        Success response with node ID and new selected state
-    """
-    service = get_kb_service(request)
-    service.toggle_selected(node_id)
-    node = service.get_node(node_id)
-    return {"success": True, "nodeId": node_id, "selected": node.selected if node else False}
-
-
-@router.get("/nodes/selected", response_model=list[ConceptNode])
-async def get_selected_nodes(request: Request) -> list[ConceptNode]:
-    """
-    Get all selected nodes.
-
-    Returns:
-        List of selected ConceptNodes
-    """
-    service = get_kb_service(request)
-    return service.get_selected_nodes()
-
-
-@router.delete("/nodes/selection")
-async def clear_selection(request: Request) -> dict:
-    """
-    Clear selection from all nodes.
-
-    Returns:
-        Success response with message
-    """
-    service = get_kb_service(request)
-    service.clear_selection()
-    return {"success": True, "message": "Selection cleared"}
-
-
 @router.post("/nodes/{node_id}/expand")
 async def set_node_expanded(node_id: str, request: Request, expanded: bool = True) -> dict:
     """

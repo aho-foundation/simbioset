@@ -2,14 +2,13 @@
 API routes for bot management.
 """
 
-from typing import Dict, List, Optional
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Request
-from pydantic import BaseModel
 
 from api.bot.tg import BotManager
 
 
-router = APIRouter(prefix="/bot", tags=["bot"])
+router = APIRouter(prefix="/api/bot", tags=["bot"])
 
 # Global bot manager instance
 # This should be managed by dependency injection, but for now we'll use this approach

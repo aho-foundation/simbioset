@@ -7,6 +7,7 @@ class ChatSessionCreate(BaseModel):
 
     topic: str = Field(..., description="Topic of the chat session")
     conceptTreeId: Optional[str] = Field(None, description="ID of the concept tree to link")
+    ecosystem: Optional[dict] = Field(None, description="Ecosystem data for the session")
 
 
 class ChatSession(BaseModel):
@@ -18,6 +19,8 @@ class ChatSession(BaseModel):
     updated_at: int = Field(..., description="Last update timestamp")
     message_count: int = Field(0, description="Number of messages in session")
     conceptTreeId: Optional[str] = Field(None, description="ID of the concept tree to link")
+    location: Optional[dict] = Field(None, description="Location and ecosystem data for the session")
+    indexed_books: list = Field(default_factory=list, description="Indexed books for the session")
 
 
 class ChatMessageCreate(BaseModel):
@@ -33,9 +36,21 @@ class ChatMessageCreate(BaseModel):
 
 
 class ChatDragToChat(BaseModel):
-    """Request model for dragging a concept node to chat."""
+    """Request model for dragging content to chat (concepts, files, etc.)."""
 
     sessionId: str = Field(..., description="ID of the chat session")
-    conceptNodeId: str = Field(..., description="ID of the concept node to drag")
+
+    # Для перетаскивания концепта
+    conceptNodeId: Optional[str] = Field(None, description="ID of the concept node to drag")
+
+    # Для перетаскивания файлов
+    file: Optional[dict] = Field(None, description="File data for drag & drop (images, documents)")
+    # file structure: {
+    #   "name": str,
+    #   "type": str,  # "image/jpeg", "text/plain", etc.
+    #   "content": str,  # base64 for images, text content for documents
+    #   "size": int
+    # }
+
     operation: str = Field("drag-to-chat", description="Operation type")
-    context: dict = Field(..., description="Context information")
+    context: dict = Field(default_factory=dict, description="Context information")

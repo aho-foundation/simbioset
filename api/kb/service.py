@@ -584,67 +584,6 @@ class KBService:
                 return ConceptNode(**self._validate_node_data(node))
         return None
 
-    def set_selected(self, node_id: str, selected: bool) -> None:
-        """Set selection state of a node.
-
-        According to docs/conversation_tree_framework.md line 87.
-
-        Args:
-            node_id: Node identifier
-            selected: True to select, False to deselect
-
-        Raises:
-            ValueError: If node not found
-        """
-        node_data = self.repository.get_by_id(node_id)
-        if not node_data:
-            raise ValueError(f"Node {node_id} not found")
-
-        self.repository.update(node_id, {"selected": selected})
-
-    def toggle_selected(self, node_id: str) -> None:
-        """Toggle selection state of a node.
-
-        According to docs/conversation_tree_framework.md line 90.
-
-        Args:
-            node_id: Node identifier
-
-        Raises:
-            ValueError: If node not found
-        """
-        node_data = self.repository.get_by_id(node_id)
-        if not node_data:
-            raise ValueError(f"Node {node_id} not found")
-
-        current_selected = node_data.get("selected", False)
-        self.repository.update(node_id, {"selected": not current_selected})
-
-    def get_selected_nodes(self) -> list[ConceptNode]:
-        """Get all selected nodes.
-
-        According to docs/conversation_tree_framework.md line 93.
-
-        Returns:
-            List of selected ConceptNodes
-        """
-        all_nodes = self.repository.get_all()
-        selected = [ConceptNode(**node) for node in all_nodes if node.get("selected", False)]
-        return selected
-
-    def clear_selection(self) -> None:
-        """Clear selection from all nodes.
-
-        According to docs/conversation_tree_framework.md line 96.
-        """
-        all_nodes = self.repository.get_all()
-        for node_data in all_nodes:
-            node_id = node_data.get("id")
-            if not node_id:
-                continue
-            if node_data.get("selected", False):
-                self.repository.update(node_id, {"selected": False})
-
     def set_expanded(self, node_id: str, expanded: bool) -> None:
         """Set expanded state of a node.
 

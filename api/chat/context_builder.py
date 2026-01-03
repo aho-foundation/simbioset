@@ -344,49 +344,174 @@ def filter_messages_by_location_and_ecosystem(
 
 
 def format_ecosystem_context(
-    ecosystems: List[Dict[str, Any]], location: Optional[str] = None, weather: Optional[str] = None
+    ecosystems: List[Dict[str, Any]],
+    location: Optional[str] = None,
+    weather: Optional[str] = None,
+    symbionts: Optional[List] = None,
 ) -> str:
     """
     Форматирует информацию о локальной экосистеме для включения в контекст промпта.
-    Объединяет информацию о локации, экосистемах и погоде в единый контекст.
+
+    Использует структурированный формат, адаптированный для Weaviate-style метрик:
+    - Четкие категории и метки
+    - Структурированная информация
+    - Типы данных и статусы
+    - Машиночитаемый формат
 
     Args:
-        ecosystems: Список экосистем
-        location: Локация (если указана)
-        weather: Информация о погоде (если указана)
+        ecosystems: Список экосистем с метаданными
+        location: Географическая локация
+        weather: Метеорологические данные
+        symbionts: Список симбионтов/патогенов (опционально)
 
     Returns:
-        Отформатированная строка с информацией о локальной экосистеме
+        Структурированная строка контекста экосистемы
     """
-    parts = []
+    context_parts = []
 
-    # Локация
+    # === ГЕОГРАФИЧЕСКИЙ КОНТЕКСТ ===
     if location:
-        parts.append(f"Локация: {location}")
+        context_parts.append("=== GEOSPATIAL CONTEXT ===")
+        context_parts.append(f"📍 Location: {location}")
+        context_parts.append("📊 Status: active | Type: geographic")
+        context_parts.append("")
 
-    # Погода (часть локальной экосистемы)
+    # === МЕТЕОРОЛОГИЧЕСКИЕ МЕТРИКИ ===
     if weather:
-        parts.append(f"Погода:\n{weather}")
+        context_parts.append("=== WEATHER METRICS ===")
+        # Разбираем погоду на структурированные метрики
+        weather_lines = weather.strip().split("\n")
+        for line in weather_lines:
+            if ":" in line:
+                key, value = line.split(":", 1)
+                context_parts.append(f"🌡️ {key.strip()}: {value.strip()}")
+            else:
+                context_parts.append(f"🌤️ {line}")
+        context_parts.append("📊 Status: current | Type: meteorological")
+        context_parts.append("")
 
-    # Экосистемы
+    # === ЭКОСИСТЕМНЫЕ СУЩНОСТИ ===
     if ecosystems:
-        eco_info = []
-        for eco in ecosystems:
-            name = eco.get("name", "")
+        context_parts.append("=== ECOSYSTEM ENTITIES ===")
+
+        for i, eco in enumerate(ecosystems, 1):
+            name = eco.get("name", "unknown")
+            scale = eco.get("scale", "unspecified")
             description = eco.get("description", "")
-            scale = eco.get("scale", "")
-            eco_str = f"- {name}"
+            confidence = eco.get("confidence", 0.0)
+
+            # Форматируем как Weaviate-style метрику
+            context_parts.append(f"🌿 Entity_{i}: {name}")
+            context_parts.append(f"   ├── Scale: {scale} | Type: ecosystem")
+            context_parts.append(f"   ├── Status: active | Confidence: {confidence:.2f}")
+
             if description:
-                eco_str += f" ({description})"
-            if scale:
-                eco_str += f" [масштаб: {scale}]"
-            eco_info.append(eco_str)
+                # Разбиваем длинное описание на строки
+                desc_lines = [description[i : i + 60] for i in range(0, len(description), 60)]
+                for j, desc_line in enumerate(desc_lines):
+                    prefix = "   ├── Description:" if j == 0 else "   │   "
+                    context_parts.append(f"{prefix} {desc_line}")
 
-        if eco_info:
-            parts.append("Экосистемы:\n" + "\n".join(eco_info))
+            # Добавляем метаданные если есть
+            metadata = []
+            if eco.get("location"):
+                metadata.append(f"location={eco['location']}")
+            if eco.get("biome"):
+                metadata.append(f"biome={eco['biome']}")
+            if eco.get("threat_level"):
+                metadata.append(f"threat_level={eco['threat_level']}")
 
-    # Если нет никакой информации, возвращаем пустую строку
-    if not parts:
-        return ""
+            if metadata:
+                context_parts.append(f"   └── Metadata: {', '.join(metadata)}")
+            else:
+                context_parts.append("   └── Metadata: none")
+            context_parts.append("")  # Пустая строка между сущностями
 
-    return "\n".join(parts)
+        # === МИКРОБНЫЕ СУЩНОСТИ ===
+        if symbionts:
+            context_parts.append("=== MICROBIAL ENTITIES ===")
+
+            for i, symbiont in enumerate(symbionts, 1):
+                # Основная информация
+                context_parts.append(f"🦠 Entity_{i}: {symbiont.name}")
+                context_parts.append(f"   ├── Type: {symbiont.type} | Category: {symbiont.category or 'unspecified'}")
+                context_parts.append(f"   ├── Status: active | Confidence: {symbiont.detection_confidence:.2f}")
+
+                # Научное название
+                if symbiont.scientific_name:
+                    context_parts.append(f"   ├── Scientific Name: {symbiont.scientific_name}")
+
+                # Биохимическая роль
+                if symbiont.biochemical_role:
+                    # Разбиваем длинный текст на строки
+                    role_lines = [
+                        symbiont.biochemical_role[i : i + 60] for i in range(0, len(symbiont.biochemical_role), 60)
+                    ]
+                    for j, role_line in enumerate(role_lines):
+                        prefix = "   ├── Biochemical Role:" if j == 0 else "   │   "
+                        context_parts.append(f"{prefix} {role_line}")
+
+                # Уровень риска с визуальными индикаторами
+                risk_emoji = {"low": "🟢", "medium": "🟡", "high": "🔴", "critical": "💀"}.get(
+                    symbiont.risk_level or "low", "❓"
+                )
+
+                context_parts.append(f"   ├── Risk Level: {symbiont.risk_level or 'low'} {risk_emoji}")
+
+                # Дополнительные метрики
+                metrics = []
+                if symbiont.prevalence and symbiont.prevalence > 0:
+                    metrics.append(f"prevalence={symbiont.prevalence:.2f}")
+                if symbiont.virulence_factors:
+                    metrics.append(f"virulence_factors={len(symbiont.virulence_factors)}")
+                if symbiont.geographic_distribution:
+                    metrics.append(f"distribution={symbiont.geographic_distribution}")
+
+                if metrics:
+                    context_parts.append(f"   └── Metrics: {', '.join(metrics)}")
+                else:
+                    context_parts.append("   └── Metrics: none")
+                context_parts.append("")  # Пустая строка между сущностями
+
+        # Сводная статистика
+        context_parts.append("=== ECOSYSTEM SUMMARY ===")
+        context_parts.append(f"📊 Ecosystem Entities: {len(ecosystems)}")
+        if symbionts:
+            context_parts.append(f"📊 Microbial Entities: {len(symbionts)}")
+            context_parts.append(f"📊 Total Biological Entities: {len(ecosystems) + len(symbionts)}")
+
+        scales = [eco.get("scale", "unspecified") for eco in ecosystems]
+        scale_counts: dict[str, int] = {}
+        for scale in scales:
+            scale_counts[scale] = scale_counts.get(scale, 0) + 1
+        scale_summary = ", ".join([f"{scale}: {count}" for scale, count in scale_counts.items()])
+        context_parts.append(f"📊 Ecosystem Scales: {scale_summary}")
+
+        if symbionts:
+            # Распределение типов симбионтов
+            sym_types = [s.type or "unknown" for s in symbionts]
+            type_counts: dict[str, int] = {}
+            for sym_type in sym_types:
+                type_counts[sym_type] = type_counts.get(sym_type, 0) + 1
+            type_summary = ", ".join([f"{t}: {c}" for t, c in type_counts.items()])
+            context_parts.append(f"📊 Microbial Types: {type_summary}")
+
+        context_parts.append("📊 Status: active | Type: ecological")
+
+    # === СИСТЕМНЫЕ МЕТРИКИ ===
+    if context_parts:
+        context_parts.append("=== SYSTEM METRICS ===")
+        context_parts.append("⏱️ Timestamp: real-time")
+        context_parts.append("🔄 Update Frequency: per_message")
+        context_parts.append("📈 Data Source: user_location + ai_detection")
+        context_parts.append("🎯 Confidence Threshold: 0.5")
+
+    # Если контекст пустой, возвращаем специальное сообщение
+    if not context_parts:
+        return "=== ECOSYSTEM CONTEXT ===\n📊 Status: inactive | Message: No ecosystem data available"
+
+    return "\n".join(context_parts)
+
+
+# DEPRECATED: get_symbionts_context больше не используется.
+# Симбионты теперь включаются в format_ecosystem_context для объединения биологического контекста.

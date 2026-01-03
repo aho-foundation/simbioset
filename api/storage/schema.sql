@@ -216,6 +216,47 @@ CREATE TABLE IF NOT EXISTS symbiotic_relationships (
     CHECK (organism1_id != organism2_id)
 );
 
+-- Таблица для хранения симбионтов и патогенов с иерархической структурой
+-- Симбионты и патогены могут быть организмами, но имеют специальную классификацию
+-- и могут образовывать иерархические структуры (включающие отношения)
+CREATE TABLE IF NOT EXISTS symbionts_pathogens (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,  -- Название симбионта/патогена
+    scientific_name TEXT,  -- Научное название
+    type TEXT CHECK (type IN ('symbiont', 'pathogen', 'commensal', 'parasite')),  -- Тип: симбионт, патоген, комменсал, паразит
+    category TEXT,  -- Категория: бактерия, вирус, гриб, простейшее, гельминт и т.д.
+    host_organism_id TEXT,  -- ID организма-хозяина (может быть NULL для свободноживущих)
+    parent_symbiont_id TEXT,  -- Родительский симбионт/патоген для иерархической структуры
+    interaction_type TEXT CHECK (interaction_type IN ('mutualistic', 'parasitic', 'commensal', 'pathogenic')),
+    biochemical_role TEXT,  -- Биохимическая роль в организме-хозяине
+    transmission_method TEXT,  -- Способ передачи (для патогенов)
+    virulence_factors TEXT,  -- Факторы вирулентности (JSON)
+    symbiotic_benefits TEXT,  -- Польза для симбиоза (JSON)
+    ecological_impact TEXT,  -- Влияние на экосистему
+    geographic_distribution TEXT,  -- Географическое распространение
+    prevalence REAL DEFAULT 0.0,  -- Распространенность (0.0-1.0)
+    risk_level TEXT CHECK (risk_level IN ('low', 'medium', 'high', 'critical')),  -- Уровень риска
+    detection_confidence REAL DEFAULT 0.0,  -- Уверенность в обнаружении
+    metadata TEXT,  -- Дополнительные метаданные (JSON)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (host_organism_id) REFERENCES organisms(id) ON DELETE SET NULL,
+    FOREIGN KEY (parent_symbiont_id) REFERENCES symbionts_pathogens(id) ON DELETE SET NULL
+);
+
+-- Таблица для связи симбионтов/патогенов с экосистемами
+CREATE TABLE IF NOT EXISTS symbiont_ecosystems (
+    symbiont_id TEXT NOT NULL,
+    ecosystem_id TEXT NOT NULL,
+    role_in_ecosystem TEXT,  -- Роль в экосистеме
+    impact_level TEXT CHECK (impact_level IN ('beneficial', 'neutral', 'harmful', 'disruptive')),
+    prevalence_in_ecosystem REAL DEFAULT 0.0,  -- Распространенность в экосистеме
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (symbiont_id, ecosystem_id),
+    FOREIGN KEY (symbiont_id) REFERENCES symbionts_pathogens(id) ON DELETE CASCADE,
+    FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id) ON DELETE CASCADE
+);
+
 -- Таблица для хранения тегов классификации параграфов
 -- Поля:
 --   id: уникальный идентификатор тега (обычно равен name)

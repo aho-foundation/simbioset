@@ -160,53 +160,133 @@ class SimbioticGraphContextBuilder:
         graph_context: Dict[str, Any],
         max_relationships: int = 10,
     ) -> str:
-        """Форматирует графовый контекст для включения в промпт LLM.
+        """
+        Форматирует графовый контекст для включения в промпт LLM.
+
+        Использует структурированный формат в стиле Weaviate метрик:
+        - Четкие категории и метки
+        - Структурированная информация
+        - Типы данных и статусы
+        - Иерархическая организация
 
         Args:
             graph_context: Результат expand_via_graph
             max_relationships: Максимальное количество связей для форматирования
 
         Returns:
-            Отформатированная строка с графовым контекстом
+            Структурированная строка с графовым контекстом
         """
-        parts = []
+        context_parts = []
 
+        # === СИМБИОТИЧЕСКИЕ СВЯЗИ ===
         relationships = graph_context.get("relationships", [])[:max_relationships]
         if relationships:
-            parts.append("### Симбиотические связи:")
-            for rel in relationships:
+            context_parts.append("=== SYMBIOTIC RELATIONSHIPS ===")
+
+            for i, rel in enumerate(relationships, 1):
                 org1_id = rel.get("organism1_id", "")
                 org2_id = rel.get("organism2_id", "")
                 rel_type = rel.get("relationship_type", "unknown")
                 level = rel.get("level", "inter_organism")
                 description = rel.get("description", "")
+                strength = rel.get("strength", 0.5)
 
                 org1_name = self.get_organism_name(org1_id)
                 org2_name = self.get_organism_name(org2_id)
 
-                rel_str = f"- {org1_name} --[{rel_type}]--> {org2_name}"
-                if level:
-                    rel_str += f" (уровень: {level})"
+                # Форматируем как Weaviate-style метрику
+                context_parts.append(f"🔗 Relationship_{i}: {org1_name} → {org2_name}")
+                context_parts.append(f"   ├── Type: {rel_type} | Level: {level}")
+                context_parts.append(f"   ├── Status: active | Strength: {strength:.2f}")
+
                 if description:
-                    rel_str += f"\n  Описание: {description[:200]}"
+                    # Разбиваем длинное описание на строки
+                    desc_lines = [description[i : i + 60] for i in range(0, len(description), 60)]
+                    for j, desc_line in enumerate(desc_lines):
+                        prefix = "   ├── Description:" if j == 0 else "   │   "
+                        context_parts.append(f"{prefix} {desc_line}")
 
-                parts.append(rel_str)
+                # Добавляем метаданные если есть
+                metadata = []
+                if rel.get("biochemical_exchange"):
+                    metadata.append("biochemical_exchange=yes")
+                if rel.get("ecosystem_id"):
+                    metadata.append("ecosystem_linked=yes")
 
+                if metadata:
+                    context_parts.append(f"   └── Metadata: {', '.join(metadata)}")
+                else:
+                    context_parts.append("   └── Metadata: none")
+                context_parts.append("")  # Пустая строка между связями
+
+        # === ЭКОСИСТЕМНЫЕ СУЩНОСТИ ===
         ecosystems = graph_context.get("ecosystems", [])
         if ecosystems:
-            parts.append("\n### Экосистемы:")
-            for eco in ecosystems[:5]:
+            context_parts.append("=== ECOSYSTEM ENTITIES ===")
+
+            for i, eco in enumerate(ecosystems[:5], 1):
                 name = eco.get("name", "")
                 description = eco.get("description", "")
                 scale = eco.get("scale", "")
-                eco_str = f"- {name}"
-                if scale:
-                    eco_str += f" [масштаб: {scale}]"
-                if description:
-                    eco_str += f"\n  {description[:200]}"
-                parts.append(eco_str)
+                location = eco.get("location", "")
 
-        return "\n".join(parts) if parts else ""
+                # Форматируем как Weaviate-style метрику
+                context_parts.append(f"🌍 Entity_{i}: {name}")
+                context_parts.append(f"   ├── Scale: {scale} | Type: ecosystem")
+                context_parts.append(f"   ├── Status: active | Location: {location or 'unspecified'}")
+
+                if description:
+                    # Разбиваем длинное описание на строки
+                    desc_lines = [description[i : i + 60] for i in range(0, len(description), 60)]
+                    for j, desc_line in enumerate(desc_lines):
+                        prefix = "   ├── Description:" if j == 0 else "   │   "
+                        context_parts.append(f"{prefix} {desc_line}")
+
+                # Добавляем метаданные если есть
+                metadata = []
+                if eco.get("parent_ecosystem_id"):
+                    metadata.append("has_parent=yes")
+                if eco.get("metabolic_characteristics"):
+                    metadata.append("has_metabolism=yes")
+
+                if metadata:
+                    context_parts.append(f"   └── Metadata: {', '.join(metadata)}")
+                else:
+                    context_parts.append("   └── Metadata: none")
+                context_parts.append("")  # Пустая строка между сущностями
+
+        # === СИСТЕМНЫЕ МЕТРИКИ ===
+        if relationships or ecosystems:
+            context_parts.append("=== GRAPH METRICS ===")
+            context_parts.append(f"📊 Total Relationships: {len(relationships)}")
+            context_parts.append(f"📊 Total Ecosystems: {len(ecosystems)}")
+
+            # Распределение типов связей
+            if relationships:
+                rel_types = [rel.get("relationship_type", "unknown") for rel in relationships]
+                type_counts: dict[str, int] = {}
+                for rel_type in rel_types:
+                    type_counts[rel_type] = type_counts.get(rel_type, 0) + 1
+                type_summary = ", ".join([f"{t}: {c}" for t, c in type_counts.items()])
+                context_parts.append(f"📊 Relationship Types: {type_summary}")
+
+            # Распределение масштабов экосистем
+            if ecosystems:
+                scales = [eco.get("scale", "unspecified") for eco in ecosystems]
+                scale_counts: dict[str, int] = {}
+                for scale in scales:
+                    scale_counts[scale] = scale_counts.get(scale, 0) + 1
+                scale_summary = ", ".join([f"{s}: {c}" for s, c in scale_counts.items()])
+                context_parts.append(f"📊 Ecosystem Scales: {scale_summary}")
+
+            context_parts.append("📊 Status: active | Type: ecological_graph")
+            context_parts.append("⏱️ Timestamp: real-time | Source: knowledge_graph")
+
+        # Если контекст пустой, возвращаем специальное сообщение
+        if not context_parts:
+            return "=== GRAPH CONTEXT ===\n📊 Status: inactive | Message: No graph relationships found"
+
+        return "\n".join(context_parts)
 
     async def build_graph_augmented_context(
         self,

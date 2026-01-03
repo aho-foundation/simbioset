@@ -1,13 +1,15 @@
-import { Component } from 'solid-js'
+import { Component, Show } from 'solid-js'
 import styles from '~/styles/interview.module.css'
 import type { MessageSource } from '~/types/chat'
-import { CopyIcon, EditIcon, FactCheckIcon } from './MessageIcons'
+import { BookSearchIcon, CopyIcon, EditIcon, FactCheckIcon, WebSearchIcon } from './MessageIcons'
 import { SourcesList } from './SourcesList'
 
 interface MessageActionsProps {
   content: string
   onCopy: () => void
   onFactCheck: () => void
+  onWebSearch?: () => void
+  onBookSearch?: () => void
   onEdit: () => void
   isFactCheckLoading?: boolean
   sources?: MessageSource[]
@@ -37,6 +39,34 @@ export const MessageActions: Component<MessageActionsProps> = (props) => {
         >
           <FactCheckIcon />
         </button>
+        <Show when={props.onWebSearch}>
+          <button
+            class={styles.copyMessageButton}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              props.onWebSearch?.()
+            }}
+            title="Поиск в интернете по этому сообщению"
+            disabled={props.isFactCheckLoading}
+          >
+            <WebSearchIcon />
+          </button>
+        </Show>
+        <Show when={props.onBookSearch}>
+          <button
+            class={styles.copyMessageButton}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              props.onBookSearch?.()
+            }}
+            title="Поиск книг по этому сообщению"
+            disabled={props.isFactCheckLoading}
+          >
+            <BookSearchIcon />
+          </button>
+        </Show>
         <button
           class={styles.copyMessageButton}
           onClick={(e) => {

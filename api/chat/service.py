@@ -6,7 +6,7 @@ import time
 import uuid
 import fcntl
 from pathlib import Path
-from typing import List, Set
+from typing import List, Optional, Set
 
 from api.llm import call_llm
 from api.logger import root_logger
@@ -18,7 +18,7 @@ log = root_logger.debug
 # Кеш стартеров
 _STARTERS_CACHE_FILE = Path("data/starters_cache.json")
 _STARTERS_CACHE: Set[str] = set()
-_MAX_CACHED_STARTERS = 250
+_MAX_CACHED_STARTERS = 300
 
 
 def _load_starters_cache() -> Set[str]:
@@ -104,6 +104,7 @@ class ChatSessionService:
             updated_at=now,
             message_count=0,
             conceptTreeId=session_data.conceptTreeId,
+            location=session_data.ecosystem,
         )
 
         self._sessions[session_id] = session
@@ -170,6 +171,47 @@ class ChatSessionService:
         """
         return list(self._sessions.values())
 
+    def update_session_location(self, session_id: str, location_data: Optional[dict]) -> ChatSession | None:
+        """
+        Update session location and ecosystem data.
+
+        Args:
+            session_id: Session identifier
+            location_data: Location and ecosystem information, or None to clear
+
+        Returns:
+            Updated ChatSession or None if not found
+        """
+        session = self._sessions.get(session_id)
+        if not session:
+            return None
+
+        session.location = location_data
+        session.updated_at = int(time.time() * 1000)
+        return session
+
+    def update_session_books(self, session_id: str, books_data: list) -> ChatSession | None:
+        """
+        Update session indexed books data.
+
+        Args:
+            session_id: Session identifier
+            books_data: List of indexed book entries
+
+        Returns:
+            Updated ChatSession or None if not found
+        """
+        session = self._sessions.get(session_id)
+        if not session:
+            return None
+
+        if not hasattr(session, "indexed_books"):
+            session.indexed_books = []
+
+        session.indexed_books = books_data
+        session.updated_at = int(time.time() * 1000)
+        return session
+
     def delete_session(self, session_id: str) -> bool:
         """
         Delete session.
@@ -191,7 +233,7 @@ async def generate_starters() -> List[str]:
     Generates conversation starters for the symbiosis project.
 
     Генерирует новые стартеры через LLM и кеширует их.
-    После накопления 250 стартеров в кеше, возвращает только из кеша.
+    После накопления 300 стартеров в кеше, возвращает только из кеша.
 
     Returns:
         List of 3 conversation starter questions/phrases
@@ -201,7 +243,7 @@ async def generate_starters() -> List[str]:
     # Загружаем кеш если еще не загружен
     cache = _load_starters_cache()
 
-    # Если в кеше уже 250+ стартеров, возвращаем случайные 3 из кеша
+    # Если в кеше уже 300+ стартеров, возвращаем случайные 3 из кеша
     if len(cache) >= _MAX_CACHED_STARTERS:
         log(f"📦 Кеш стартеров полон ({len(cache)}), возвращаем из кеша")
         return random.sample(list(cache), min(3, len(cache)))

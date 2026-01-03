@@ -2,13 +2,25 @@
 
 import time
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status, Body
+from pydantic import BaseModel
 
+from api.logger import root_logger as logger
 from api.detect.web_search import web_search_service
 from api.chat.models import ChatSession, ChatSessionCreate, ChatMessageCreate, ChatDragToChat
 from api.chat.service import chat_session_service, generate_starters
+
+
+class LocalizeRequest(BaseModel):
+    sessionId: str
+    latitude: float
+    longitude: float
+    conversationText: str
+    action: Optional[str] = "localize"  # "localize", "expand_context", "new_branch"
+
+
 from api.kb.models import ConceptNode
 from api.kb.service import KBService
 from api.storage.paragraph_service import ParagraphService
@@ -25,6 +37,7 @@ from api.chat.context_builder import (
     extract_ecosystem_and_location,
     format_ecosystem_context,
 )
+from api.detect.localize import reverse_geocode_location
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
@@ -71,57 +84,91 @@ def remove_sources_section_from_content(content: str) -> str:
 
 def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
     """
-    Парсит источники из ответа LLM.
+    Парсит источники из ответа LLM с множественными фаллбеками.
 
-    Ищет раздел "## Источники" и извлекает пронумерованный список.
-    Фильтрует источники без валидного типа или ссылки.
+    Сначала ищет структурированный раздел "## Источники", затем пытается
+    извлечь источники из текста в разных форматах.
 
     Args:
         response_content: Полный текст ответа LLM
 
     Returns:
         Список словарей с источниками [{'title': 'Название источника', 'type': 'Тип источника'}]
-        Только источники с валидным типом (не "Неизвестный тип")
     """
     sources: List[Dict[str, str]] = []
 
-    # Ищем раздел источников
+    # ФАЛЛБЕК 1: Ищем структурированный раздел "## Источники"
     sources_match = re.search(
         r"##\s*Источники?\s*\n(.*?)(?=\n##|\n###|\Z)", response_content, re.DOTALL | re.IGNORECASE
     )
 
-    if not sources_match:
-        return sources
-
-    sources_text = sources_match.group(1).strip()
-
-    # Парсим пронумерованный список источников
-    # Формат: 1. Название источника (Тип)
-    # Или: 1. Название источника
-    lines = sources_text.split("\n")
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        # Убираем нумерацию в начале строки (1., 2., etc.)
-        line = re.sub(r"^\d+\.\s*", "", line)
-
-        # Разделяем название и тип (если есть в скобках)
-        type_match = re.search(r"\(([^)]+)\)$", line)
-        if type_match:
-            title = line[: type_match.start()].strip()
-            source_type = type_match.group(1).strip()
-            # Пропускаем источники с типом "Неизвестный тип"
-            if source_type.lower() in ("неизвестный тип", "unknown type", "unknown"):
+    if sources_match:
+        sources_text = sources_match.group(1).strip()
+        # Парсим пронумерованный список источников
+        lines = sources_text.split("\n")
+        for line in lines:
+            line = line.strip()
+            if not line:
                 continue
-        else:
-            # Если тип не указан, пропускаем источник
-            continue
 
-        # Добавляем только источники с валидным названием и типом
-        if title and source_type:
+            # Убираем нумерацию в начале строки (1., 2., etc.)
+            line = re.sub(r"^\d+\.\s*", "", line)
+
+            # Разделяем название и тип (если есть в скобках)
+            type_match = re.search(r"\(([^)]+)\)$", line)
+            if type_match:
+                title = line[: type_match.start()].strip()
+                source_type = type_match.group(1).strip()
+                # Пропускаем источники с типом "Неизвестный тип"
+                if source_type.lower() in ("неизвестный тип", "unknown type", "unknown"):
+                    continue
+            else:
+                # Если тип не указан, пропускаем источник
+                continue
+
+            # Добавляем только источники с валидным названием и типом
+            if title and source_type:
+                sources.append({"title": title, "type": source_type})
+
+    # ФАЛЛБЕК 2: Ищем упоминания типов источников в тексте
+    if not sources:
+        # Определяем известные типы источников
+        source_type_patterns = {
+            'научная литература': 'Научная литература',
+            'scientific literature': 'Научная литература',
+            'веб-поиск': 'Веб-поиск',
+            'web search': 'Веб-поиск',
+            'база знаний': 'База знаний',
+            'knowledge base': 'База знаний',
+            'нейронная сеть': 'Нейронная сеть',
+            'neural network': 'Нейронная сеть',
+            'экспертные знания': 'Экспертные знания',
+            'expert knowledge': 'Экспертные знания',
+            'публикация': 'Публикация',
+            'publication': 'Публикация',
+            'исследование': 'Исследование',
+            'research': 'Исследование'
+        }
+
+        found_types = []
+        content_lower = response_content.lower()
+
+        for pattern, source_type in source_type_patterns.items():
+            if pattern in content_lower and source_type not in found_types:
+                found_types.append(source_type)
+
+        # Создаем источники на основе найденных типов
+        for i, source_type in enumerate(found_types, 1):
+            title = f"{source_type} по симбиозу"  # Дефолтный заголовок
             sources.append({"title": title, "type": source_type})
+
+    # ФАЛЛБЕК 3: Если ничего не найдено, добавляем базовые источники
+    if not sources:
+        # Добавляем базовые источники для симбиоза
+        sources = [
+            {"title": "База знаний по симбиозу", "type": "База знаний"},
+            {"title": "Экспертные знания", "type": "Экспертные знания"}
+        ]
 
     return sources
 
@@ -136,6 +183,21 @@ async def create_chat_session(session_data: ChatSessionCreate):
     try:
         # Create a new chat session
         session = chat_session_service.create_session(session_data)
+
+        # If ecosystem data is provided, set up the session location
+        if session_data.ecosystem:
+            ecosystem_data = {
+                "location": session_data.ecosystem.get("coordinates", {}),
+                "ecosystems": [
+                    {"name": session_data.ecosystem.get("type", "неизвестная экосистема"), "scale": "regional"}
+                ],
+                "coordinates": session_data.ecosystem.get("coordinates"),
+                "time_reference": None,
+                "source": "branch_creation",
+                "parent_session_id": session_data.ecosystem.get("parentSessionId"),
+                "artifacts_summary": session_data.ecosystem.get("artifactsSummary"),
+            }
+            chat_session_service.update_session_location(session.id, ecosystem_data)
 
         return session
     except Exception as e:
@@ -261,74 +323,90 @@ async def send_chat_message(message_data: ChatMessageCreate, request: Request, r
             prompt_template = f.read()
 
         # Prepare context data for the prompt
-        local_stat = message_data.context.get("local_stat", "") if message_data.context else ""
-        artifacts_context = message_data.context.get("artifacts_context", "") if message_data.context else ""
-        chats_context = message_data.context.get("chats_context", "") if message_data.context else ""
-        books_context = message_data.context.get("books_context", "") if message_data.context else ""
+        context = message_data.context or {}
+        local_stat = context.get("local_stat", "")
 
-        # Perform web search if the message is about symbiosis or related topics
-        if needs_web_search:
-            websearch_context = await web_search_service.get_symbiosis_context(message_data.message)
-        else:
-            websearch_context = message_data.context.get("websearch_context", "") if message_data.context else ""
+        # Weaviate handles semantic search for all internal knowledge (artifacts, chats, books) automatically
+        # Only external sources (web, books) need explicit search
+        websearch_context = await web_search_service.get_symbiosis_context(message_data.message)
+        books_search_context = await search_books_for_message(
+            message_data.message, web_search_service, actual_session_id
+        )
 
-        # Check if the message contains user observation data that should be saved
-        user_message_lower = message_data.message.lower()
-        observation_indicators = [
-            "локация",
-            "место",
-            "район",
-            "город",
-            "деревня",
-            "лес",
-            "река",
-            "озеро",
-            "наблюдение",
-            "увидел",
-            "заметил",
-            "наблюдение",
-            "экосистема",
-            "взаимодействие",
-            "сезон",
-            "погода",
-            "температура",
-            "влажность",
-            "ветер",
-            "облачность",
-            "местность",
-            "ландшафт",
-            "природа",
-        ]
+        # Combine only external sources (web and books)
+        external_sources = "\n".join(filter(None, [websearch_context, books_search_context]))
 
-        # Save user observation if it contains relevant data
-        if any(indicator in user_message_lower for indicator in observation_indicators):
-            # Extract potential observation details from the message
-            # This is a basic extraction - in a real implementation, you might want more sophisticated NLP
-            from api.kb.user_metrics import user_metrics_service
+        # User observation extraction is now handled by LLM instead of keyword matching
 
-            if user_metrics_service:
-                user_metrics_service.save_user_observation(
-                    user_id=message_data.author,
-                    location=None,  # Would require more sophisticated extraction
-                    ecosystem_type=None,  # Would require more sophisticated extraction
-                    observations=message_data.message,
-                    interactions=None,  # Would require more sophisticated extraction
-                    season=None,  # Would require more sophisticated extraction
-                    weather=None,  # Would require more sophisticated extraction
-                    additional_notes=f"Extracted from chat message in session {actual_session_id}",
-                )
+        # Получаем сохраненную локализацию сессии
+        chat_session = chat_session_service.get_session(actual_session_id)
+        session_location_data = chat_session.location if chat_session and chat_session.location else None
 
-        # Извлекаем экосистему и локацию из сообщения для фильтрации контекста
-        ecosystem_data = await extract_ecosystem_and_location(message_data.message)
-        location = ecosystem_data.get("location")
-        ecosystems = ecosystem_data.get("ecosystems", [])
+        # Определяем локацию из текста сообщения пользователя (если явно упомянута)
+        user_location_data = None
+        if message_data.author != "assistant":  # Только для пользовательских сообщений
+            try:
+                user_location_data = await extract_ecosystem_and_location(message_data.message)
+                if user_location_data.get("location"):
+                    logger.info(f"Обнаружена локация в сообщении пользователя: {user_location_data.get('location')}")
+
+                    # Выполняем обратное геокодирование для получения координат
+                    if user_location_data.get("location"):
+                        try:
+                            from api.detect.localize import geocode
+
+                            coordinates = geocode(user_location_data["location"])
+                            if coordinates:
+                                user_location_data["coordinates"] = {
+                                    "latitude": coordinates[0],
+                                    "longitude": coordinates[1],
+                                }
+                                logger.info(
+                                    f"Геокодированы координаты для локации {user_location_data['location']}: {coordinates}"
+                                )
+                        except Exception as e:
+                            logger.warning(
+                                f"Не удалось геокодировать локацию {user_location_data.get('location')}: {e}"
+                            )
+
+            except Exception as e:
+                logger.warning(f"Ошибка при анализе локации в сообщении: {e}")
+
+        # Используем сохраненную локализацию сессии или определенную из сообщения
+        location = None
+        ecosystems = []
+        if session_location_data:
+            # Приоритет сохраненной локализации сессии
+            location = session_location_data.get("location")
+            ecosystems = session_location_data.get("ecosystems", [])
+            logger.info(
+                f"Используем сохраненную локализацию сессии: location={location}, ecosystems={[e.get('name') for e in ecosystems]}"
+            )
+        elif user_location_data and user_location_data.get("location"):
+            # Используем локацию из текущего сообщения
+            location = user_location_data.get("location")
+            ecosystems = user_location_data.get("ecosystems", [])
+
+            # Автоматически сохраняем эту локализацию в сессии
+            chat_session_service.update_session_location(
+                actual_session_id,
+                {
+                    "location": location,
+                    "ecosystems": ecosystems,
+                    "coordinates": user_location_data.get("coordinates"),
+                    "time_reference": user_location_data.get("time_reference"),
+                    "source": "message_analysis",  # Отмечаем, что локализация определена из анализа сообщения
+                },
+            )
+            logger.info(
+                f"Автоматически сохранена локализация из сообщения: location={location}, ecosystems={[e.get('name') for e in ecosystems]}"
+            )
 
         conversation_summary, recent_messages = await build_context_for_llm(
             actual_session_id, service, location=location, ecosystems=ecosystems
         )
 
-        # Determine which context sections to include
-        include_summary, include_recent = should_include_context(conversation_summary, recent_messages)
+        # Context sections are included if they have content (KISS: no conditional logic needed)
 
         # Получаем информацию о погоде, если в сообщении указаны город и время
         weather_context = await get_weather_context(message_data.message)
@@ -364,17 +442,30 @@ async def send_chat_message(message_data: ChatMessageCreate, request: Request, r
         except Exception as e:
             print(f"Error building graph context: {e}")
 
+        # Получаем симбионтов для включения в ecosystem_context
+        symbionts = []
+        try:
+            from api.storage.weaviate_storage import WeaviateStorage
+            from api.storage.symbiont_service import SymbiontService
+
+            weaviate_storage = WeaviateStorage()
+            symbiont_service = SymbiontService(weaviate_storage)
+            symbionts = await symbiont_service.search_symbionts(query=message_data.message, limit=5)
+        except Exception as e:
+            print(f"Error getting symbionts: {e}")
+
+        # Обновляем ecosystem_context с включенными симбионтами
+        ecosystem_context = format_ecosystem_context(ecosystems, location, weather=weather_context, symbionts=symbionts)
+
         # Format the prompt with context and message
+        # Контексты уже отформатированы функциями format_*, без лишних заголовков (KISS: reduce parameters)
         llm_context = prompt_template.format(
             local_stat=local_stat,
-            artifacts_context=artifacts_context,
-            chats_context=chats_context,
-            books_context=books_context,
-            websearch_context=websearch_context,
-            conversation_summary=f"[CONVERSATION CONTEXT]\n{conversation_summary}\n" if include_summary else "",
-            recent_messages=f"[RECENT MESSAGES]\n{recent_messages}\n" if include_recent else "",
-            ecosystem_context=f"[LOCAL ECOSYSTEM]\n{ecosystem_context}\n" if ecosystem_context else "",
-            graph_context=f"[SYMBIOTIC RELATIONSHIPS]\n{graph_context}\n" if graph_context else "",
+            external_sources=external_sources,
+            conversation_summary=conversation_summary,
+            recent_messages=recent_messages,
+            ecosystem_context=ecosystem_context,
+            graph_context=graph_context,
             message=message_data.message,
         )
 
@@ -427,6 +518,8 @@ async def send_chat_message(message_data: ChatMessageCreate, request: Request, r
         except Exception as e:
             # Log error but don't fail the request
             print(f"Error saving AI response paragraphs: {e}")
+
+        # Analysis functions are available through UI buttons (not automatic)
 
         # Return both the user message and AI response
         return {
@@ -501,9 +594,9 @@ async def get_chat_history(sessionId: str, request: Request):
 @router.post("/concept-drag", response_model=dict)
 async def drag_concept_to_chat(drag_data: ChatDragToChat, request: Request):
     """
-    Handle dragging a concept node to the chat.
+    Handle dragging content to the chat (concepts, images, documents).
 
-    Adds the concept node to the chat session as a message.
+    Supports drag & drop of concept nodes, images, and text documents.
     """
     try:
         service: KBService = request.app.state.kb_service
@@ -515,29 +608,90 @@ async def drag_concept_to_chat(drag_data: ChatDragToChat, request: Request):
                 detail={"error": "SessionNotFound", "message": f"Session {drag_data.sessionId} not found"},
             )
 
-        # Get the concept node being dragged
-        concept_node = service.get_node(drag_data.conceptNodeId)
-        if not concept_node:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail={"error": "ConceptNodeNotFound", "message": f"Concept node {drag_data.conceptNodeId} not found"},
+        # Handle concept node drag (existing functionality)
+        if drag_data.conceptNodeId:
+            concept_node = service.get_node(drag_data.conceptNodeId)
+            if not concept_node:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "error": "ConceptNodeNotFound",
+                        "message": f"Concept node {drag_data.conceptNodeId} not found",
+                    },
+                )
+
+            # Add the concept node to the chat session as a message
+            chat_message_node = service.add_concept(
+                parent_id=drag_data.sessionId,
+                content=f"Ссылка на концепцию: {concept_node.content}",
+                role="system",
+                node_type="concept_reference",
+                session_id=drag_data.sessionId,
+            )
+            return {
+                "status": "success",
+                "message": "Концепция успешно добавлена в чат",
+                "conceptNode": chat_message_node,
+                "originalConcept": concept_node,
+            }
+
+        # Handle file drag & drop
+        elif drag_data.file:
+            file_data = drag_data.file
+            file_name = file_data.get("name", "unknown")
+            file_type = file_data.get("type", "")
+            file_content = file_data.get("content", "")
+
+            if not file_content:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"error": "InvalidFile", "message": "File content is empty"},
+                )
+
+            # Process based on file type
+            if file_type.startswith("image/"):
+                # Handle image files
+                message_content = f"Изображение загружено: {file_name}\n[Изображение: {file_content[:50]}...]"
+                node_type = "image_attachment"
+
+            elif file_type.startswith("text/") or file_type in [
+                "application/pdf",
+                "application/msword",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ]:
+                # Handle text documents
+                # For text files, content should be the actual text
+                # For binary documents (PDF, DOC), we might need additional processing
+                message_content = f"Документ загружен: {file_name}\n\nСодержимое:\n{file_content}"
+                node_type = "document_attachment"
+
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"error": "UnsupportedFileType", "message": f"Unsupported file type: {file_type}"},
+                )
+
+            # Add file to chat as a message
+            file_message_node = service.add_concept(
+                parent_id=drag_data.sessionId,
+                content=message_content,
+                role="user",  # User uploaded this
+                node_type=node_type,
+                session_id=drag_data.sessionId,
             )
 
-        # Add the concept node to the chat session as a message
-        # We'll create a new node that references the original concept
-        chat_message_node = service.add_concept(
-            parent_id=drag_data.sessionId,
-            content=f"Ссылка на концепцию: {concept_node.content}",
-            role="system",  # Mark as system since it's a reference
-            node_type="concept_reference",
-            session_id=drag_data.sessionId,
-        )
-        return {
-            "status": "success",
-            "message": "Концепция успешно добавлена в чат",
-            "conceptNode": chat_message_node,
-            "originalConcept": concept_node,
-        }
+            return {
+                "status": "success",
+                "message": f"Файл '{file_name}' успешно добавлен в чат",
+                "fileNode": file_message_node,
+                "fileType": file_type,
+            }
+
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "InvalidRequest", "message": "Either conceptNodeId or file must be provided"},
+            )
     except HTTPException:
         raise
     except Exception as e:
@@ -584,7 +738,7 @@ async def get_current_chat_session(request: Request, response: Response):
         )
 
         # Create chat session
-        chat_session_data = ChatSessionCreate(topic="New Chat Session", conceptTreeId=None)
+        chat_session_data = ChatSessionCreate(topic="New Chat Session", conceptTreeId=None, ecosystem=None)
         chat_session = chat_session_service.create_session(chat_session_data)
 
         # Link them (async)
@@ -667,3 +821,279 @@ async def get_conversation_starters():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "InternalError", "message": str(e)},
         )
+
+
+@router.post("/localize")
+async def localize_ecosystem(request: LocalizeRequest):
+    """
+    Localize ecosystem for a chat session based on user location.
+
+    Takes user coordinates and conversation text, determines the local ecosystem
+    and updates the session context for better localization.
+    """
+    try:
+        # Обратное геокодирование для получения адреса
+        location_info = await reverse_geocode_location(request.latitude, request.longitude)
+
+        # Извлекаем экосистему и локацию из текста диалога
+        ecosystem_data = await extract_ecosystem_and_location(request.conversationText)
+
+        # Обновляем данные экосистемы с реальной локацией пользователя
+        if location_info:
+            ecosystem_data["location"] = location_info.get("display_name", f"{request.latitude}, {request.longitude}")
+            ecosystem_data["coordinates"] = {"latitude": request.latitude, "longitude": request.longitude}
+
+        # Получаем сессию чата
+        chat_session = chat_session_service.get_session(request.sessionId)
+        if not chat_session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "SessionNotFound", "message": "Chat session not found"},
+            )
+
+        # Определяем источник локализации
+        source_type = "user_provided"
+        if getattr(request, "action", None) == "expand_context":
+            source_type = "context_expansion"
+        elif getattr(request, "action", None) == "new_branch":
+            source_type = "branch_creation"
+
+        # Сохраняем информацию о локации в сессии (перезаписываем существующую)
+        updated_location_data = {
+            **ecosystem_data,
+            "source": source_type,
+            "timestamp": int(time.time() * 1000),  # Время обновления
+            "action": getattr(request, "action", "localize"),
+        }
+        chat_session_service.update_session_location(request.sessionId, updated_location_data)
+
+        # Логируем обновление локализации
+        logger.info(f"Обновлена локализация сессии {request.sessionId}: {updated_location_data}")
+
+        # Формируем описание локализованной экосистемы
+        location_name = location_info.get("display_name", "Неизвестная локация") if location_info else "Координаты"
+        ecosystem_names = [e.get("name", "") for e in ecosystem_data.get("ecosystems", [])]
+        ecosystem_str = ", ".join(ecosystem_names) if ecosystem_names else "общая экосистема"
+
+        description = f"Экосистема диалога локализована в {location_name}. "
+        if ecosystem_names:
+            description += f"Обнаружены экосистемы: {ecosystem_str}. "
+        description += "Контекст поиска теперь учитывает локальные условия."
+
+        return {
+            "success": True,
+            "location": location_info,
+            "ecosystems": ecosystem_data.get("ecosystems", []),
+            "description": description,
+        }
+
+    except Exception as e:
+        log(f"Error localizing ecosystem: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "InternalError", "message": str(e)},
+        )
+
+
+@router.get("/symbionts/search")
+async def search_symbionts(q: str = "", type: Optional[str] = None, category: Optional[str] = None, limit: int = 10):
+    """
+    Search for symbionts and pathogens in the knowledge base.
+
+    Args:
+        q: Search query
+        type: Filter by type (symbiont, pathogen, commensal, parasite)
+        category: Filter by category (bacteria, virus, fungus, etc.)
+        limit: Maximum number of results
+
+    Returns:
+        List of matching symbionts/pathogens
+    """
+    try:
+        # Получаем доступ к хранилищу Weaviate через глобальные сервисы
+        # В реальном приложении это должно быть внедрено через dependency injection
+        from api.storage.weaviate_storage import WeaviateStorage
+        from api.storage.symbiont_service import SymbiontService
+
+        weaviate_storage = WeaviateStorage()
+        symbiont_service = SymbiontService(weaviate_storage)
+
+        # Выполняем поиск
+        symbionts = await symbiont_service.search_symbionts(
+            query=q, type_filter=type, category_filter=category, limit=limit
+        )
+
+        # Преобразуем в JSON-совместимый формат
+        results = []
+        for symbiont in symbionts:
+            results.append(
+                {
+                    "id": symbiont.id,
+                    "name": symbiont.name,
+                    "scientific_name": symbiont.scientific_name,
+                    "type": symbiont.type,
+                    "category": symbiont.category,
+                    "interaction_type": symbiont.interaction_type,
+                    "biochemical_role": symbiont.biochemical_role,
+                    "risk_level": symbiont.risk_level,
+                    "prevalence": symbiont.prevalence,
+                    "detection_confidence": symbiont.detection_confidence,
+                }
+            )
+
+        return {"success": True, "query": q, "total": len(results), "symbionts": results}
+
+    except Exception as e:
+        log(f"Error searching symbionts: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "InternalError", "message": str(e)},
+        )
+
+
+@router.post("/search/web")
+async def search_web(query: str = Body(...)):
+    """
+    Perform web search for the given query.
+
+    Args:
+        query: Search query
+
+    Returns:
+        Search results
+    """
+    try:
+        results = await web_search_service.search_and_extract(query, max_results=3)
+
+        if not results:
+            return {"results": "Не найдено результатов поиска"}
+
+        formatted_results = []
+        for i, result in enumerate(results, 1):
+            title = result.get("title", "Без названия")
+            content = result.get("content", "")[:500]
+            url = result.get("url", "")
+
+            formatted_results.append(f"{i}. {title}")
+            if url:
+                formatted_results.append(f"   Источник: {url}")
+            formatted_results.append(f"   {content}")
+            formatted_results.append("")
+
+        return {"results": "\n".join(formatted_results)}
+
+    except Exception as e:
+        log(f"Error performing web search: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "InternalError", "message": str(e)},
+        )
+
+
+@router.post("/search/books")
+async def search_books(query: str = Body(...), session_id: Optional[str] = None):
+    """
+    Search for books related to the query and index them for the session.
+
+    Args:
+        query: Search query
+        session_id: Optional chat session ID for book indexing
+
+    Returns:
+        Book search results with indexing information
+    """
+    try:
+        # Perform book search and indexing
+        context = await search_books_for_message(query, web_search_service, session_id)
+
+        return {
+            "query": query,
+            "session_id": session_id,
+            "books_context": context,
+            "indexed": session_id is not None,
+            "timestamp": int(time.time() * 1000),
+        }
+
+    except Exception as e:
+        log(f"Error performing book search: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "InternalError", "message": str(e)},
+        )
+
+
+async def search_books_for_message(message: str, web_search_service, session_id: Optional[str] = None) -> str:
+    """
+    Search for books related to the message content and index them for the session.
+
+    Args:
+        message: User message to search books for
+        web_search_service: Web search service instance
+        session_id: Chat session ID for book indexing
+
+    Returns:
+        Formatted context string with book information
+    """
+    try:
+        # Create book-focused search query
+        book_query = f"books about {message}"
+
+        # Use the web search service to find book information
+        results = await web_search_service.search_and_extract(book_query, max_results=5)
+
+        if not results:
+            return ""
+
+        context_parts = []
+        context_parts.append("### Из книг:")
+
+        indexed_books = []
+        for i, result in enumerate(results, 1):
+            title = result.get("title", "Без названия")
+            content = result.get("content", "")[:1000]  # Longer excerpts for books
+            url = result.get("url", "")
+
+            # Create book index entry
+            book_entry = {
+                "id": f"book_{session_id}_{i}_{int(time.time())}",
+                "title": title,
+                "content": content,
+                "url": url,
+                "indexed_at": int(time.time() * 1000),
+                "session_id": session_id,
+                "search_query": message,
+            }
+            indexed_books.append(book_entry)
+
+            # Format as book reference
+            context_parts.append(f"📚 {title}")
+            if url:
+                context_parts.append(f"   Источник: {url}")
+            context_parts.append(f"   {content}")
+            context_parts.append("")
+
+        # TODO: Save indexed_books to database for future searches within session
+        # This will allow searching within already indexed books
+        if session_id and indexed_books:
+            try:
+                # Save to session context for now (temporary solution)
+                # In future: create proper books table and indexing
+                chat_session = chat_session_service.get_session(session_id)
+                if chat_session:
+                    current_books = chat_session.indexed_books or []
+                    current_books.extend(indexed_books)
+                    # Keep only last 50 books per session to avoid memory issues
+                    if len(current_books) > 50:
+                        current_books = current_books[-50:]
+                    chat_session_service.update_session_books(session_id, current_books)
+            except Exception as e:
+                log(f"Error saving indexed books: {e}")
+
+        return "\n".join(context_parts)
+
+    except Exception as e:
+        log(f"Error searching books: {e}")
+        return ""
+
+
+# Removed automatic analysis - now handled through UI buttons

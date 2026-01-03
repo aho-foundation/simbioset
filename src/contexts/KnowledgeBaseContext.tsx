@@ -63,30 +63,18 @@ export interface ContinueConversationData {
   sessionId?: string
 }
 
-export interface ToggleResult {
-  success: boolean
-  nodeId: string
-  selected?: boolean
-  expanded?: boolean
-}
+
 
 // Source interface is now defined in src/types/kb.d.ts
 // This duplicate definition has been removed to avoid conflicts
 
-export interface ClearSelectionResult {
-  success: boolean
-  message: string
-}
+
 
 export interface DeleteResult {
   success: boolean
 }
 
-export interface SetSelectedResult {
-  success: boolean
-  nodeId: string
-  selected: boolean
-}
+
 
 export interface SetExpandedResult {
   success: boolean
@@ -188,37 +176,13 @@ export async function getRootNode(): Promise<ConceptNode> {
   return response.json()
 }
 
-export async function setNodeSelected(nodeId: string, selected = true) {
-  const response = await fetch(`${API_BASE}/nodes/${nodeId}/select`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ selected })
-  })
-  if (!response.ok) throw new Error(`Failed to set node selected: ${response.statusText}`)
-  return response.json()
-}
 
-export async function toggleNodeSelected(nodeId: string): Promise<ToggleResult> {
-  const response = await fetch(`${API_BASE}/nodes/${nodeId}/toggle-select`, {
-    method: 'POST'
-  })
-  if (!response.ok) throw new Error(`Failed to toggle node selected: ${response.statusText}`)
-  return response.json()
-}
 
-export async function getSelectedNodes(): Promise<ConceptNode[]> {
-  const response = await fetch(`${API_BASE}/nodes/selected`)
-  if (!response.ok) throw new Error(`Failed to get selected nodes: ${response.statusText}`)
-  return response.json()
-}
 
-export async function clearSelection(): Promise<ClearSelectionResult> {
-  const response = await fetch(`${API_BASE}/nodes/selection`, {
-    method: 'DELETE'
-  })
-  if (!response.ok) throw new Error(`Failed to clear selection: ${response.statusText}`)
-  return response.json()
-}
+
+
+
+
 
 export async function setNodeExpanded(nodeId: string, expanded = true) {
   const response = await fetch(`${API_BASE}/nodes/${nodeId}/expand`, {

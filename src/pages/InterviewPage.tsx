@@ -100,6 +100,7 @@ const InterviewPage = () => {
   const [treeRefreshKey, setTreeRefreshKey] = createSignal(0)
   const [editingMessageId, setEditingMessageId] = createSignal<number | string | null>(null)
   const [editingContent, setEditingContent] = createSignal('')
+  const [currentLocation, setCurrentLocation] = createSignal<string | null>(null)
   const { sessionId, setSessionId } = useSession()
   const kb = useKnowledgeBase()
 
@@ -198,6 +199,16 @@ const InterviewPage = () => {
     }
   })
 
+  // Загружаем локализацию при изменении sessionId
+  createEffect(async () => {
+    const sid = sessionId()
+    if (sid) {
+      await loadCurrentLocation(sid)
+    } else {
+      setCurrentLocation(null)
+    }
+  })
+
   // Загружаем историю один раз через createResource и используем для сообщений и дерева
   const [chatHistory, { refetch: refetchHistory }] = createResource(
     () => sessionId(),
@@ -258,43 +269,33 @@ const InterviewPage = () => {
     return lastUser?.content || ''
   }
 
-  const appendDetectorResult = (title: string, payload: unknown) => {
-    const summary =
-      typeof payload === 'string' ? payload : `\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now() + Math.random(),
-        role: 'assistant',
-        content: `🔍 ${title}\n\n${summary}`
-      } as const
-    ])
-  }
-
   const generateSummary = async () => {
     if (!canShowAnalyticsPanel() || summaryLoading()) return
 
     setSummaryLoading(true)
     try {
-      const conversationText = messages()
-        .map((m) => `${m.role}: ${m.content}`)
-        .join('\n\n')
+      // Генерируем саммари с артефактами анализа вместо простой сводки
+      const artifactsSummary = await generateArtifactsSummary()
 
-      const res = await fetch('/api/summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: conversationText })
-      })
+      // Добавляем информацию о текущей экосистеме
+      const currentLocationInfo = currentLocation()
+        ? `\n\n**Текущая экосистема:** ${currentLocation()}`
+        : ''
 
-      if (!res.ok) {
-        appendDetectorResult('Саммари', `Ошибка: ${res.status} ${res.statusText}`)
-        return
+      const summaryMessage: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `📋 **Артефакты совместного анализа**\n\n${artifactsSummary}${currentLocationInfo}\n\n**Всего сообщений в диалоге:** ${messages().length}\n**Дата создания саммари:** ${new Date().toLocaleString('ru-RU')}`,
+        sources: [{ title: 'Артефакты анализа', type: 'artifacts_summary' }]
       }
-
-      const data = await res.json()
-      appendDetectorResult('Саммари диалога', data)
+      setMessages((prev) => [...prev, summaryMessage])
     } catch (e) {
-      appendDetectorResult('Саммари', `Ошибка запроса: ${(e as Error).message}`)
+      const errorMessage: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `❌ Ошибка генерации артефактов анализа: ${(e as Error).message}`
+      }
+      setMessages((prev) => [...prev, errorMessage])
     } finally {
       setSummaryLoading(false)
     }
@@ -318,23 +319,30 @@ const InterviewPage = () => {
       })
 
       if (!res.ok) {
-        // Показываем ошибку на кнопке вместо сообщения в чате
-        setDetectorErrors((prev) => ({ ...prev, [kind]: true }))
-        // Автоматически сбрасываем ошибку через 2 секунды
-        setTimeout(() => {
-          setDetectorErrors((prev) => ({ ...prev, [kind]: false }))
-        }, 2000)
+        const errorMessage: Message = {
+          id: Date.now(),
+          role: 'assistant',
+          content: `❌ Ошибка анализа: ${res.status} ${res.statusText}`
+        }
+        setMessages((prev) => [...prev, errorMessage])
         return
       }
 
       const data = await res.json()
       const titleMap: Record<typeof kind, string> = {
-        organisms: 'Организмы',
-        ecosystems: 'Экосистемы',
-        environment: 'Метрики среды',
-        all: 'Анализ'
+        organisms: '🦠 Анализ организмов',
+        ecosystems: '🌍 Анализ экосистем',
+        environment: '🌡️ Анализ среды',
+        all: '🔬 Комплексный анализ'
       }
-      appendDetectorResult(titleMap[kind], data)
+
+      const resultMessage: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `**${titleMap[kind]}**\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``,
+        sources: [{ title: titleMap[kind], type: 'analysis' }]
+      }
+      setMessages((prev) => [...prev, resultMessage])
     } catch (_e) {
       // Показываем ошибку на кнопке вместо сообщения в чате
       setDetectorErrors((prev) => ({ ...prev, [kind]: true }))
@@ -646,7 +654,12 @@ const InterviewPage = () => {
       })
 
       if (!res.ok) {
-        appendDetectorResult('Фактчекер', `Ошибка: ${res.status} ${res.statusText}`)
+        const errorMessage: Message = {
+          id: Date.now(),
+          role: 'assistant',
+          content: `❌ Ошибка фактчекинга: ${res.status} ${res.statusText}`
+        }
+        setMessages((prev) => [...prev, errorMessage])
         return
       }
 
@@ -662,15 +675,459 @@ const InterviewPage = () => {
       const confidence = data.details?.confidence
         ? ` (уверенность: ${(data.details.confidence * 100).toFixed(0)}%)`
         : ''
-      appendDetectorResult(
-        'Фактчекер',
-        `${status}${confidence}\n\nДетали: ${JSON.stringify(data.details, null, 2)}`
-      )
+
+      const factCheckMessage: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `🔍 **Результат фактчекинга:** ${status}${confidence}\n\n**Детали:**\n\`\`\`json\n${JSON.stringify(data.details, null, 2)}\n\`\`\``,
+        sources: [{ title: 'Фактчекер', type: 'fact_check' }]
+      }
+      setMessages((prev) => [...prev, factCheckMessage])
     } catch (e) {
-      appendDetectorResult('Фактчекер', `Ошибка запроса: ${(e as Error).message}`)
+      const errorMessage: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `❌ Ошибка фактчекинга: ${(e as Error).message}`
+      }
+      setMessages((prev) => [...prev, errorMessage])
     } finally {
       setDetectorLoading(false)
     }
+  }
+
+  // Функция для загрузки текущей локализации сессии
+  const loadCurrentLocation = async (sid: string) => {
+    if (!sid) return
+
+    try {
+      const response = await fetch(`/api/chat/localize/${sid}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.has_localization && data.location_data) {
+          const location = data.location_data.location
+          setCurrentLocation(location || 'Локализованная экосистема')
+        } else {
+          setCurrentLocation(null)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load current location:', error)
+      setCurrentLocation(null)
+    }
+  }
+
+  // Функция для поиска в интернете
+  const performWebSearch = async () => {
+    if (detectorLoading()) return
+
+    const currentMessage = messages().length > 0 ? messages()[messages().length - 1] : null
+    const searchQuery = currentMessage?.content || 'симбиоз экосистемы'
+
+    setDetectorLoading(true)
+    try {
+      // Добавляем сообщение о начале поиска
+      const searchMessage: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `🔍 Выполняю поиск в интернете по теме: "${searchQuery}"...`
+      }
+      setMessages((prev) => [...prev, searchMessage])
+
+      const res = await fetch('/api/chat/search/web', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(searchQuery)
+      })
+
+      if (!res.ok) {
+        const errorMessage: Message = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: `❌ Ошибка поиска в интернете: ${res.status} ${res.statusText}`
+        }
+        setMessages((prev) => [...prev, errorMessage])
+        return
+      }
+
+      const data = await res.json()
+      const resultsMessage: Message = {
+        id: Date.now() + 2,
+        role: 'assistant',
+        content: `🌐 **Результаты поиска в интернете:**\n\n${data.results || data}`,
+        sources: [{ title: 'Поиск в интернете', type: 'web_search' }]
+      }
+      setMessages((prev) => [...prev, resultsMessage])
+    } catch (e) {
+      const errorMessage: Message = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: `❌ Ошибка запроса поиска в интернете: ${(e as Error).message}`
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
+      setDetectorLoading(false)
+    }
+  }
+
+  // Функция для поиска книг
+  const performBookSearch = async () => {
+    if (detectorLoading()) return
+
+    const currentMessage = messages().length > 0 ? messages()[messages().length - 1] : null
+    const searchQuery = currentMessage?.content || 'симбиоз экосистемы'
+
+    setDetectorLoading(true)
+    try {
+      // Добавляем сообщение о начале поиска
+      const searchMessage: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `📚 Выполняю поиск книг по теме: "${searchQuery}"...`
+      }
+      setMessages((prev) => [...prev, searchMessage])
+
+      const res = await fetch('/api/chat/search/books', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(searchQuery)
+      })
+
+      if (!res.ok) {
+        const errorMessage: Message = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: `❌ Ошибка поиска книг: ${res.status} ${res.statusText}`
+        }
+        setMessages((prev) => [...prev, errorMessage])
+        return
+      }
+
+      const data = await res.json()
+      const resultsMessage: Message = {
+        id: Date.now() + 2,
+        role: 'assistant',
+        content: `📖 **Результаты поиска книг:**\n\n${data.results || data}`,
+        sources: [{ title: 'Поиск книг', type: 'book_search' }]
+      }
+      setMessages((prev) => [...prev, resultsMessage])
+    } catch (e) {
+      const errorMessage: Message = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: `❌ Ошибка запроса поиска книг: ${(e as Error).message}`
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
+      setDetectorLoading(false)
+    }
+  }
+
+  // Функции для поиска по конкретному сообщению
+  const performWebSearchForMessage = async (messageContent: string) => {
+    if (detectorLoading()) return
+
+    setDetectorLoading(true)
+    try {
+      const searchMessage: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: '🔍 Выполняю поиск в интернете по сообщению...'
+      }
+      setMessages((prev) => [...prev, searchMessage])
+
+      const res = await fetch('/api/chat/search/web', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messageContent)
+      })
+
+      if (!res.ok) {
+        const errorMessage: Message = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: `❌ Ошибка поиска в интернете: ${res.status} ${res.statusText}`
+        }
+        setMessages((prev) => [...prev, errorMessage])
+        return
+      }
+
+      const data = await res.json()
+      const resultsMessage: Message = {
+        id: Date.now() + 2,
+        role: 'assistant',
+        content: `🌐 **Результаты поиска в интернете:**\n\n${data.results || data}`,
+        sources: [{ title: 'Поиск в интернете', type: 'web_search' }]
+      }
+      setMessages((prev) => [...prev, resultsMessage])
+    } catch (e) {
+      const errorMessage: Message = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: `❌ Ошибка запроса поиска в интернете: ${(e as Error).message}`
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
+      setDetectorLoading(false)
+    }
+  }
+
+  const performBookSearchForMessage = async (messageContent: string) => {
+    if (detectorLoading()) return
+
+    setDetectorLoading(true)
+    try {
+      const searchMessage: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: '📚 Выполняю поиск книг по сообщению...'
+      }
+      setMessages((prev) => [...prev, searchMessage])
+
+      const res = await fetch('/api/chat/search/books', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messageContent)
+      })
+
+      if (!res.ok) {
+        const errorMessage: Message = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: `❌ Ошибка поиска книг: ${res.status} ${res.statusText}`
+        }
+        setMessages((prev) => [...prev, errorMessage])
+        return
+      }
+
+      const data = await res.json()
+      const resultsMessage: Message = {
+        id: Date.now() + 2,
+        role: 'assistant',
+        content: `📖 **Результаты поиска книг:**\n\n${data.results || data}`,
+        sources: [{ title: 'Поиск книг', type: 'book_search' }]
+      }
+      setMessages((prev) => [...prev, resultsMessage])
+    } catch (e) {
+      const errorMessage: Message = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: `❌ Ошибка запроса поиска книг: ${(e as Error).message}`
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
+      setDetectorLoading(false)
+    }
+  }
+
+  // Функция для отправки локации и локализации экосистемы диалога
+  // Диалог выбора действия с локацией
+  const [showLocationChoice, setShowLocationChoice] = createSignal(false)
+  const [pendingLocation, setPendingLocation] = createSignal<{ lat: number; lng: number } | null>(null)
+
+  const sendLocation = async () => {
+    if (detectorLoading()) return
+    setDetectorLoading(true)
+    try {
+      // Получаем геолокацию пользователя
+      if (!navigator.geolocation) {
+        const errorMessage: Message = {
+          id: Date.now(),
+          role: 'assistant',
+          content: '❌ Геолокация не поддерживается браузером'
+        }
+        setMessages((prev) => [...prev, errorMessage])
+        return
+      }
+
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000 // 5 минут
+        })
+      })
+
+      const { latitude, longitude } = position.coords
+
+      // Показываем диалог выбора действия с локацией
+      showLocationDialog(latitude, longitude)
+    } catch (e) {
+      const error = e as GeolocationPositionError
+      let errorMessage = 'Ошибка получения локации'
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          errorMessage = 'Доступ к геолокации запрещен'
+          break
+        case error.POSITION_UNAVAILABLE:
+          errorMessage = 'Информация о локации недоступна'
+          break
+        case error.TIMEOUT:
+          errorMessage = 'Превышено время ожидания локации'
+          break
+      }
+      const errorMsg: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `❌ ${errorMessage}`
+      }
+      setMessages((prev) => [...prev, errorMsg])
+    } finally {
+      setDetectorLoading(false)
+    }
+  }
+
+  const showLocationDialog = (latitude: number, longitude: number) => {
+    setPendingLocation({ lat: latitude, lng: longitude })
+    setShowLocationChoice(true)
+  }
+
+  const handleLocationChoice = async (choice: 'expand' | 'new_branch') => {
+    if (!pendingLocation()) return
+
+    const { lat, lng } = pendingLocation()!
+    setShowLocationChoice(false)
+    setPendingLocation(null)
+
+    if (choice === 'expand') {
+      await expandEcosystemContext(lat, lng)
+    } else if (choice === 'new_branch') {
+      await createNewEcosystemBranch(lat, lng)
+    }
+  }
+
+  const expandEcosystemContext = async (latitude: number, longitude: number) => {
+    setDetectorLoading(true)
+    try {
+      // Локализация будет определена автоматически через анализ сообщений
+
+      // Отправляем локацию на сервер для расширения контекста
+      const res = await fetch('/api/chat/localize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionId(),
+          latitude,
+          longitude,
+          conversationText: messages()
+            .map((m) => `${m.role}: ${m.content}`)
+            .join('\n\n'),
+          action: 'expand_context'
+        })
+      })
+
+      if (!res.ok) {
+        const errorMessage: Message = {
+          id: Date.now(),
+          role: 'assistant',
+          content: `❌ Ошибка расширения контекста: ${res.status} ${res.statusText}`
+        }
+        setMessages((prev) => [...prev, errorMessage])
+        return
+      }
+
+      const data = await res.json()
+      const locationMessage: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `🌍 **Расширение контекста экосистемы**\n\nКоординаты: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}\n\n${data.description || 'Контекст расширен. Экосистемы будут определены автоматически из сообщений.'}`,
+        sources: [{ title: 'Расширение экосистемы', type: 'location_expand' }]
+      }
+      setMessages((prev) => [...prev, locationMessage])
+
+      // Загружаем обновленную информацию о локализации
+      const currentSessionId = sessionId()
+      if (currentSessionId) {
+        await loadCurrentLocation(currentSessionId)
+      }
+
+      // Перезагружаем историю
+      void refetchHistory()
+      setTreeRefreshKey((prev) => prev + 1)
+    } catch (e) {
+      const errorMsg: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `❌ Ошибка расширения контекста: ${(e as Error).message}`
+      }
+      setMessages((prev) => [...prev, errorMsg])
+    } finally {
+      setDetectorLoading(false)
+    }
+  }
+
+  const createNewEcosystemBranch = async (latitude: number, longitude: number) => {
+    setDetectorLoading(true)
+    try {
+      // Локализация будет определена автоматически через анализ сообщений
+
+      // Создаем саммари текущей ветки с артефактами анализа
+      const artifactsSummary = await generateArtifactsSummary()
+
+      // Создаем новую сессию для новой экосистемы
+      const newSessionRes = await fetch('/api/chat/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: `Локация: ${latitude.toFixed(2)}, ${longitude.toFixed(2)}`,
+          ecosystem: {
+            type: 'custom_ecosystem',
+            coordinates: { latitude, longitude },
+            parentSessionId: sessionId(),
+            artifactsSummary: artifactsSummary
+          }
+        })
+      })
+
+      if (!newSessionRes.ok) {
+        const errorMessage: Message = {
+          id: Date.now(),
+          role: 'assistant',
+          content: `❌ Ошибка создания новой ветки: ${newSessionRes.status} ${newSessionRes.statusText}`
+        }
+        setMessages((prev) => [...prev, errorMessage])
+        return
+      }
+
+      const newSessionData = await newSessionRes.json()
+      const branchMessage: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `🌱 **Создана новая ветка для локализации**\n\nКоординаты: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}\n\nАртефакты анализа из текущей ветки перенесены.\nЭкосистемы будут определены автоматически из сообщений.\n\n[Перейти к новой ветке](${window.location.origin}/chat/${newSessionData.sessionId})`,
+        sources: [{ title: 'Новая ветка экосистемы', type: 'branch_create' }]
+      }
+      setMessages((prev) => [...prev, branchMessage])
+    } catch (e) {
+      const errorMsg: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `❌ Ошибка создания новой ветки: ${(e as Error).message}`
+      }
+      setMessages((prev) => [...prev, errorMsg])
+    } finally {
+      setDetectorLoading(false)
+    }
+  }
+
+  const generateArtifactsSummary = async (): Promise<string> => {
+    // Собираем все артефакты анализа из текущего диалога
+    const analysisArtifacts = messages().filter((msg) =>
+      msg.sources?.some((source) =>
+        ['analysis', 'fact_check', 'web_search', 'book_search', 'location'].includes(source.type || '')
+      )
+    )
+
+    if (analysisArtifacts.length === 0) {
+      return 'Артефакты анализа отсутствуют в текущей ветке.'
+    }
+
+    const artifactsSummary = analysisArtifacts
+      .map((msg, index) => {
+        const sourceType = msg.sources?.[0]?.type || 'unknown'
+        return `## Артефакт ${index + 1}: ${sourceType.toUpperCase()}\n${msg.content}\n`
+      })
+      .join('\n')
+
+    return `### Артефакты совместного анализа\n\n${artifactsSummary}\n\n**Всего артефактов:** ${analysisArtifacts.length}`
   }
 
   return (
@@ -693,6 +1150,8 @@ const InterviewPage = () => {
                         content={message.content}
                         onCopy={() => copyToClipboard(message.content)}
                         onFactCheck={() => void runFactCheck(message.content)}
+                        onWebSearch={() => void performWebSearchForMessage(message.content)}
+                        onBookSearch={() => void performBookSearchForMessage(message.content)}
                         onEdit={() => startEditing(message.id, message.content)}
                         isFactCheckLoading={detectorLoading()}
                         sources={message.role === 'assistant' ? message.sources : undefined}
@@ -790,6 +1249,10 @@ const InterviewPage = () => {
                   alert('Невозможно создать ссылку: нет активной сессии')
                 }
               }}
+              onSendLocation={sendLocation}
+              onWebSearch={performWebSearch}
+              onBookSearch={performBookSearch}
+              currentLocation={currentLocation()}
             />
           </Show>
         </div>
@@ -823,7 +1286,14 @@ const InterviewPage = () => {
           />
           <div class={styles.actionsGroup}>
             <button
-              onClick={() => setIsPanelOpen(!isPanelOpen())}
+              onClick={() => {
+                const newState = !isPanelOpen()
+                setIsPanelOpen(newState)
+                // Automatically generate summary when opening the panel
+                if (newState && canShowAnalyticsPanel() && !summaryLoading()) {
+                  void generateSummary()
+                }
+              }}
               disabled={!canShowAnalyticsPanel()}
               class={styles.menuBtn}
               title={
@@ -884,7 +1354,7 @@ const InterviewPage = () => {
               onClick={generateSummary}
               disabled={!canShowAnalyticsPanel() || summaryLoading()}
               class={styles.summaryBtn}
-              title={summaryLoading() ? 'Генерация саммари...' : 'Создать саммари диалога'}
+              title={summaryLoading() ? 'Обновление саммари...' : 'Обновить саммари диалога'}
             >
               <svg
                 width="16"
@@ -944,6 +1414,35 @@ const InterviewPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Диалог выбора действия с локацией */}
+      <Show when={showLocationChoice()}>
+        <div class={styles.locationDialog}>
+          <div class={styles.locationDialogContent}>
+            <h3>Выберите действие с новой локацией</h3>
+            <p>Обнаружена новая геолокация. Как поступить с контекстом экосистемы?</p>
+
+            <div class={styles.locationDialogButtons}>
+              <button onClick={() => handleLocationChoice('expand')} class={styles.locationDialogButton}>
+                🌍 Расширить контекст
+                <small>Объединить с текущей экосистемой</small>
+              </button>
+
+              <button
+                onClick={() => handleLocationChoice('new_branch')}
+                class={styles.locationDialogButton}
+              >
+                🌱 Новая ветка
+                <small>Создать отдельную ветку для новой экосистемы</small>
+              </button>
+
+              <button onClick={() => setShowLocationChoice(false)} class={styles.locationDialogCancel}>
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      </Show>
     </div>
   )
 }

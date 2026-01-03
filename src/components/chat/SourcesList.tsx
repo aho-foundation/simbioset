@@ -8,8 +8,25 @@ interface SourcesListProps {
 }
 
 export const SourcesList = (props: SourcesListProps) => {
-  const validSources = () =>
-    props.sources.filter((s) => s.title && s.type && !s.type.toLowerCase().includes('неизвестный'))
+  const validSources = () => {
+    return props.sources.filter((s) => {
+      // Фильтруем источники с валидными данными
+      if (!s.title || !s.type) return false
+
+      // Исключаем неизвестные типы
+      const invalidTypes = ['неизвестный тип', 'unknown type', 'unknown']
+      if (invalidTypes.some(invalid => s.type.toLowerCase().includes(invalid))) return false
+
+      // Исключаем слишком короткие или слишком длинные названия
+      if (s.title.length < 3 || s.title.length > 200) return false
+
+      // Исключаем технические строки
+      const technicalPatterns = ['===', '---', 'http://', 'https://']
+      if (technicalPatterns.some(pattern => s.title.includes(pattern))) return false
+
+      return true
+    })
+  }
 
   return (
     <Show when={validSources().length > 0}>
@@ -18,7 +35,7 @@ export const SourcesList = (props: SourcesListProps) => {
           {(source) => {
             const Icon = getSourceIcon(source.type)
             return (
-              <span class={styles.sourceInlineItem} title={source.title}>
+              <span class={styles.sourceInlineItem} title={`${source.title} (${source.type})`}>
                 <span class={styles.sourceIcon}>
                   <Icon />
                 </span>

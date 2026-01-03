@@ -96,7 +96,7 @@ async def get_weather(city: str, time_reference: Optional[str] = None) -> Option
                 # Gismeteo использует ссылки вида /weather-city-{id}/
                 city_link = None
                 for link in soup.find_all("a", href=True):
-                    href = link.get("href", "")
+                    href = str(link.get("href", ""))
                     link_text = link.get_text().strip().lower()
                     # Ищем ссылки на погоду и проверяем, что текст ссылки содержит название города
                     if "/weather-" in href and city.lower() in link_text:
@@ -106,7 +106,7 @@ async def get_weather(city: str, time_reference: Optional[str] = None) -> Option
                 # Если не нашли по тексту, пробуем первую ссылку на погоду
                 if not city_link:
                     for link in soup.find_all("a", href=True):
-                        href = link.get("href", "")
+                        href = str(link.get("href", ""))
                         if "/weather-" in href:
                             city_link = href
                             break
@@ -154,7 +154,7 @@ async def get_weather(city: str, time_reference: Optional[str] = None) -> Option
                         # Извлекаем число из текста (может быть со знаком минус)
                         temp_match = re.search(r"-?\d+", temp_text)
                         if temp_match:
-                            temperature = int(temp_match.group())
+                            temperature = temp_match.group()
 
                     # Условия (солнечно, пасмурно и т.д.)
                     condition_elem = (
@@ -180,7 +180,7 @@ async def get_weather(city: str, time_reference: Optional[str] = None) -> Option
                                 humidity_text = value_elem.get_text().strip()
                                 humidity_match = re.search(r"\d+", humidity_text)
                                 if humidity_match:
-                                    humidity = int(humidity_match.group())
+                                    humidity = humidity_match.group()
 
                     # Скорость ветра
                     wind_elem = weather_soup.find(string=re.compile("ветер|wind", re.I))

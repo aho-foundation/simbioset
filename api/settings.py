@@ -7,7 +7,7 @@ from api.logger import root_logger as logger
 
 load_dotenv()
 
-WEBHOOK_URL = "https://simbioset.ru/bot"
+WEBHOOK_URL = "https://simbioset.ru/api/bot/"
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 MODELS_LIST: list[str] = os.getenv("MODELS_LIST", "").split(",") if os.getenv("MODELS_LIST") else []

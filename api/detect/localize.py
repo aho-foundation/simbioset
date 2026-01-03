@@ -27,6 +27,32 @@ def reverse_geocode(lat: float, lon: float) -> Optional[str]:
         return None
 
 
+async def reverse_geocode_location(lat: float, lon: float) -> Optional[Dict[str, Any]]:
+    """
+    Преобразует координаты в подробную информацию о местоположении.
+
+    Args:
+        lat: Широта
+        lon: Долгота
+
+    Returns:
+        Словарь с информацией о местоположении или None при ошибке
+    """
+    try:
+        geolocator = Nominatim(user_agent="simbioset")
+        location = geolocator.reverse((lat, lon), exactly_one=True, timeout=10)
+        if location:
+            return {
+                "display_name": location.address,
+                "latitude": location.latitude,
+                "longitude": location.longitude,
+                "raw": location.raw,
+            }
+        return None
+    except (GeocoderTimedOut, GeocoderUnavailable):
+        return None
+
+
 def geocode(caption: str) -> Optional[tuple[float, float]]:
     """
     Преобразует адрес в координаты с помощью Nominatim (OpenStreetMap).
