@@ -92,8 +92,24 @@ export const DefaultSourceIcon: Component = () => (
   </svg>
 )
 
-// Функция для получения иконки по типу источника
+// Маппинг эмоджи на иконки для декодирования
+const emojiToIconMap: Record<string, Component> = {
+  '📚': ScientificLiteratureIcon, // научная литература
+  '🌐': WebSearchIcon,            // веб-поиск
+  '🧠': KnowledgeBaseIcon,        // база знаний
+  '🤖': PublicationIcon,          // нейронная сеть / публикация
+  '📖': PublicationIcon,          // публикация
+  '🔬': ScientificLiteratureIcon, // исследование
+}
+
+// Функция для получения иконки по типу источника (эмоджи или текст)
 export const getSourceIcon = (sourceType: string): Component => {
+  // Сначала проверяем на эмоджи
+  if (emojiToIconMap[sourceType]) {
+    return emojiToIconMap[sourceType]
+  }
+
+  // Затем проверяем текстовые типы
   const typeLower = sourceType.toLowerCase()
 
   if (typeLower.includes('база знаний') || typeLower.includes('knowledge base')) {

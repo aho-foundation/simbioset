@@ -130,8 +130,14 @@ def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
                 if source_type.lower() in ("неизвестный тип", "unknown type", "unknown"):
                     continue
             else:
-                # Если тип не указан, пропускаем источник
-                continue
+                # Проверяем на эмоджи в конце строки (после названия)
+                emoji_match = re.search(r'([^\w\s])\s*$', line_without_url)
+                if emoji_match:
+                    title = line_without_url[:emoji_match.start()].strip()
+                    source_type = emoji_match.group(1).strip()
+                else:
+                    # Если тип не указан, пропускаем источник
+                    continue
 
             # Добавляем только источники с валидным названием и типом
             if title and source_type:
