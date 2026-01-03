@@ -34,6 +34,27 @@ export const SourcesList = (props: SourcesListProps) => {
         <For each={validSources()}>
           {(source) => {
             const Icon = getSourceIcon(source.type)
+
+            // Если есть URL, делаем кликабельную ссылку
+            if (source.url) {
+              return (
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class={styles.sourceInlineItem}
+                  title={`${source.title} (${source.type}) - кликните для перехода`}
+                  style="cursor: pointer; text-decoration: none;"
+                >
+                  <span class={styles.sourceIcon}>
+                    <Icon />
+                  </span>
+                  <span class={styles.sourceInlineTitle}>{source.title}</span>
+                </a>
+              )
+            }
+
+            // Иначе обычный бейдж
             return (
               <span class={styles.sourceInlineItem} title={`${source.title} (${source.type})`}>
                 <span class={styles.sourceIcon}>

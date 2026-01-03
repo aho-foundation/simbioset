@@ -8,6 +8,7 @@ export type Chat = {
 export interface MessageSource {
   title: string
   type: string
+  url?: string
 }
 
 export type Message = {

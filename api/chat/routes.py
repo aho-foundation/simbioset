@@ -93,7 +93,7 @@ def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
         response_content: Полный текст ответа LLM
 
     Returns:
-        Список словарей с источниками [{'title': 'Название источника', 'type': 'Тип источника'}]
+        Список словарей с источниками [{'title': 'Название источника', 'type': 'Тип источника', 'url': 'ссылка'}]
     """
     sources: List[Dict[str, str]] = []
 
@@ -114,10 +114,17 @@ def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
             # Убираем нумерацию в начале строки (1., 2., etc.)
             line = re.sub(r"^\d+\.\s*", "", line)
 
+            # Ищем URL в строке (https://... или http://...)
+            url_match = re.search(r'(https?://[^\s]+)', line)
+            url = url_match.group(1) if url_match else None
+
+            # Убираем URL из строки для парсинга названия и типа
+            line_without_url = re.sub(r'\s*https?://[^\s]+\s*', '', line).strip()
+
             # Разделяем название и тип (если есть в скобках)
-            type_match = re.search(r"\(([^)]+)\)$", line)
+            type_match = re.search(r"\(([^)]+)\)$", line_without_url)
             if type_match:
-                title = line[: type_match.start()].strip()
+                title = line_without_url[: type_match.start()].strip()
                 source_type = type_match.group(1).strip()
                 # Пропускаем источники с типом "Неизвестный тип"
                 if source_type.lower() in ("неизвестный тип", "unknown type", "unknown"):
@@ -128,7 +135,10 @@ def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
 
             # Добавляем только источники с валидным названием и типом
             if title and source_type:
-                sources.append({"title": title, "type": source_type})
+                source_dict = {"title": title, "type": source_type}
+                if url:
+                    source_dict["url"] = url
+                sources.append(source_dict)
 
     # ФАЛЛБЕК 2: Ищем упоминания типов источников в тексте
     if not sources:
