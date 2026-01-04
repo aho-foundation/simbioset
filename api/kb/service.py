@@ -620,6 +620,55 @@ class KBService:
         current_expanded = node_data.get("expanded", False)
         self.repository.update(node_id, {"expanded": not current_expanded})
 
+    def set_selected(self, node_id: str, selected: bool) -> None:
+        """Set selected state of a node.
+
+        Args:
+            node_id: Node identifier
+            selected: True to select, False to deselect
+
+        Raises:
+            ValueError: If node not found
+        """
+        node_data = self.repository.get_by_id(node_id)
+        if not node_data:
+            raise ValueError(f"Node {node_id} not found")
+
+        self.repository.update(node_id, {"selected": selected})
+
+    def toggle_selected(self, node_id: str) -> None:
+        """Toggle selected state of a node.
+
+        Args:
+            node_id: Node identifier
+
+        Raises:
+            ValueError: If node not found
+        """
+        node_data = self.repository.get_by_id(node_id)
+        if not node_data:
+            raise ValueError(f"Node {node_id} not found")
+
+        current_selected = node_data.get("selected", False)
+        self.repository.update(node_id, {"selected": not current_selected})
+
+    def get_selected_nodes(self) -> list[ConceptNode]:
+        """Get all nodes that are currently selected.
+
+        Returns:
+            List of selected ConceptNodes
+        """
+        selected_nodes_data = self.repository.get_selected()
+        return [ConceptNode(**self._validate_node_data(node_data)) for node_data in selected_nodes_data]
+
+    def clear_selection(self) -> int:
+        """Clear selection state for all nodes.
+
+        Returns:
+            Number of nodes that had their selection cleared
+        """
+        return self.repository.clear_selection()
+
     def get_chat_sessions(self) -> list[ConceptNode]:
         """Get all root nodes that can represent chat sessions.
 

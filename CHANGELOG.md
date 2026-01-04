@@ -1,6 +1,21 @@
 # Changelog
 
 
+## [0.4.18] - 2026-01-04
+
+### Added
+- **Операции выбора узлов**: Добавлена поддержка выбора узлов в дереве знаний
+  - `setNodeSelected` - установка состояния выбора узла
+  - `toggleNodeSelected` - переключение состояния выбора узла
+  - `getSelectedNodes` - получение списка выбранных узлов
+  - `clearSelection` - снятие выбора со всех узлов
+- **API эндпоинты для выбора**: Новые REST API эндпоинты для операций с выбором узлов
+- **Типы для операций выбора**: Добавлены TypeScript интерфейсы SetSelectedResult, ToggleResult, ClearSelectionResult
+
+### Fixed
+- **Ошибка setNodeSelected is not defined**: Исправлена ошибка ReferenceError при загрузке страницы
+
+
 ## [0.4.17] - 2026-01-03
 
 ### Added

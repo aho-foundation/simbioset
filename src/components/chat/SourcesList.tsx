@@ -15,14 +15,14 @@ export const SourcesList = (props: SourcesListProps) => {
 
       // Исключаем неизвестные типы
       const invalidTypes = ['неизвестный тип', 'unknown type', 'unknown']
-      if (invalidTypes.some(invalid => s.type.toLowerCase().includes(invalid))) return false
+      if (invalidTypes.some((invalid) => s.type.toLowerCase().includes(invalid))) return false
 
       // Исключаем слишком короткие или слишком длинные названия
       if (s.title.length < 3 || s.title.length > 200) return false
 
       // Исключаем технические строки
       const technicalPatterns = ['===', '---', 'http://', 'https://']
-      if (technicalPatterns.some(pattern => s.title.includes(pattern))) return false
+      if (technicalPatterns.some((pattern) => s.title.includes(pattern))) return false
 
       return true
     })

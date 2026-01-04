@@ -61,6 +61,16 @@ class NodeRepository(ABC):
         """Import nodes with merge/overwrite options."""
         pass
 
+    @abstractmethod
+    def get_selected(self) -> list[dict]:
+        """Get all nodes that are currently selected."""
+        pass
+
+    @abstractmethod
+    def clear_selection(self) -> int:
+        """Clear selection state for all nodes. Returns count of cleared nodes."""
+        pass
+
 
 class JSONNodeRepository(NodeRepository):
     """JSON file-based repository with file locking for thread safety and simple caching."""
@@ -519,3 +529,36 @@ class JSONNodeRepository(NodeRepository):
             return depth
 
         return self._calculate_depth(data, parent_id, depth + 1)
+
+    def get_selected(self) -> list[dict]:
+        """Get all nodes that are currently selected.
+
+        Returns:
+            List of selected node dictionaries
+        """
+        data = self._read_data()
+        selected_nodes = []
+        for node_id, node_data in data["nodes"].items():
+            if node_data.get("selected", False):
+                selected_nodes.append(node_data)
+        return selected_nodes
+
+    def clear_selection(self) -> int:
+        """Clear selection state for all nodes.
+
+        Returns:
+            Number of nodes that had their selection cleared
+        """
+        data = self._read_data()
+        cleared_count = 0
+
+        # Clear selection for all nodes
+        for node_id, node_data in data["nodes"].items():
+            if node_data.get("selected", False):
+                node_data["selected"] = False
+                cleared_count += 1
+
+        if cleared_count > 0:
+            self._write_data(data)
+
+        return cleared_count

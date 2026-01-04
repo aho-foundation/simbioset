@@ -435,6 +435,65 @@ async def toggle_node_expanded(node_id: str, request: Request) -> dict:
     return {"success": True, "nodeId": node_id, "expanded": node.expanded if node else False}
 
 
+@router.post("/nodes/{node_id}/select")
+async def set_node_selected(node_id: str, request: Request, selected: bool = True) -> dict:
+    """
+    Set selected state of a node.
+
+    Args:
+        node_id: ID of the node
+        selected: Selected state (default: True)
+
+    Returns:
+        Success response with node ID and selected state
+    """
+    service = get_kb_service(request)
+    service.set_selected(node_id, selected)
+    return {"success": True, "nodeId": node_id, "selected": selected}
+
+
+@router.post("/nodes/{node_id}/toggle-select")
+async def toggle_node_selected(node_id: str, request: Request) -> dict:
+    """
+    Toggle selected state of a node.
+
+    Args:
+        node_id: ID of the node
+
+    Returns:
+        Success response with node ID and new selected state
+    """
+    service = get_kb_service(request)
+    service.toggle_selected(node_id)
+    node = service.get_node(node_id)
+    return {"success": True, "nodeId": node_id, "selected": node.selected if node else False}
+
+
+@router.get("/nodes/selected")
+async def get_selected_nodes(request: Request) -> list[ConceptNode]:
+    """
+    Get all nodes that are currently selected.
+
+    Returns:
+        List of selected ConceptNodes
+    """
+    service = get_kb_service(request)
+    return service.get_selected_nodes()
+
+
+@router.post("/nodes/clear-selection")
+async def clear_selection(request: Request) -> dict:
+    """
+    Clear selection state for all nodes.
+
+    Returns:
+        Success response with count of cleared nodes
+    """
+    service = get_kb_service(request)
+    cleared_count = service.clear_selection()
+    return {"success": True, "clearedCount": cleared_count}
+
+
 @router.get("/sessions", response_model=list[ConceptNode])
 async def get_chat_sessions(request: Request) -> list[ConceptNode]:
     """
