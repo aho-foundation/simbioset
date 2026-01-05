@@ -17,6 +17,7 @@ from api.bot.routes import router as routerBot
 from api.storage.routes import router as routerStorage
 from api.classify.tag_routes import router as routerTags
 from api.detect.routes import router as routerDetect
+from api.projects.artifacts_routes import router as routerArtifacts
 from api.logger import root_logger
 
 log = root_logger.debug
@@ -279,6 +280,7 @@ app.include_router(routerTags)
 app.include_router(routerProjects)
 app.include_router(routerBot)
 app.include_router(routerDetect)
+app.include_router(routerArtifacts)
 
 # Монтируем статические файлы в /static, а не в корень
 app.mount("/static", StaticFiles(directory=Path("dist")), name="static")

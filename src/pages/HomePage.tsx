@@ -154,21 +154,6 @@ const Home: Component = () => {
         </div>
       </section>
 
-      {/* Demo Section - Weaviate Search */}
-      <section class={styles.demoSection}>
-        <div class={styles.demoContainer}>
-          <h2 class={styles.demoTitle}>{t('Попробуйте поиск по базе знаний')}</h2>
-          <p class={styles.demoDescription}>
-            {t(
-              'Используйте мощный векторный поиск для нахождения релевантной информации в нашей базе знаний'
-            )}
-          </p>
-          <div class={styles.demoSearch}>
-            <ParagraphSearch limit={5} />
-          </div>
-        </div>
-      </section>
-
       {/* Call to Action */}
       <section class={styles.finalCta}>
         <h2 class={styles.ctaTitle}>{t('Готовы улучшить вашу экосистему?')}</h2>

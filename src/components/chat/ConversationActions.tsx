@@ -2,6 +2,7 @@ import { Component, Show } from 'solid-js'
 import styles from '~/styles/interview.module.css'
 import badgeStyles from './ConversationActions.module.css'
 import {
+  ArtifactIcon,
   BookSearchIcon,
   CopyIcon,
   FactCheckIcon,
@@ -46,11 +47,13 @@ interface ConversationActionsProps {
   onWebSearch?: () => void
   onBookSearch?: () => void
   onFactCheck?: () => void
+  onShowArtifacts?: () => void
   currentLocation?: string | null
   factCheckResult?: { status: 'true' | 'false' | null; confidence?: number } | null
   hasWebSearchError?: boolean
   hasLocationError?: boolean
   hasBookSearchError?: boolean
+  artifactsCount?: number
 }
 
 export const ConversationActions: Component<ConversationActionsProps> = (props) => {
@@ -118,6 +121,18 @@ export const ConversationActions: Component<ConversationActionsProps> = (props) 
                       : '?'}
                 </div>
               )}
+            </Show>
+          </div>
+        </button>
+      </Show>
+      <Show when={props.onShowArtifacts}>
+        <button class={styles.copyButton} onClick={props.onShowArtifacts} title="Артефакты беседы">
+          <div class={badgeStyles.badgeContainer}>
+            <ArtifactIcon />
+            <Show when={props.artifactsCount && props.artifactsCount > 0}>
+              <div class={badgeStyles.artifactBadge}>
+                {props.artifactsCount}
+              </div>
             </Show>
           </div>
         </button>

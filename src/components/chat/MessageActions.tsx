@@ -1,16 +1,18 @@
 import { Component, Show } from 'solid-js'
 import styles from '~/styles/interview.module.css'
 import type { MessageSource } from '~/types/chat'
-import { BookSearchIcon, CopyIcon, EditIcon, FactCheckIcon, WebSearchIcon } from './MessageIcons'
+import { ArtifactIcon, BookSearchIcon, CopyIcon, EditIcon, FactCheckIcon, WebSearchIcon } from './MessageIcons'
 import { SourcesList } from './SourcesList'
 
 interface MessageActionsProps {
   content: string
+  selectedText?: string
   onCopy: () => void
   onFactCheck: () => void
   onWebSearch?: () => void
   onBookSearch?: () => void
   onEdit: () => void
+  onMarkArtifact?: () => void
   isFactCheckLoading?: boolean
   sources?: MessageSource[]
 }
@@ -65,6 +67,19 @@ export const MessageActions: Component<MessageActionsProps> = (props) => {
             disabled={props.isFactCheckLoading}
           >
             <BookSearchIcon />
+          </button>
+        </Show>
+        <Show when={props.onMarkArtifact && props.selectedText}>
+          <button
+            class={styles.copyMessageButton}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              props.onMarkArtifact?.()
+            }}
+            title="Отметить как артефакт"
+          >
+            <ArtifactIcon />
           </button>
         </Show>
         <button

@@ -2,6 +2,9 @@
 
 from typing import Any, Optional
 
+from datetime import datetime
+from typing import List
+
 from .models import (
     BaseProject,
     CrowdsourcedProject,
@@ -9,6 +12,7 @@ from .models import (
     Idea,
     Contributor,
     Backer,
+    FundingTier,
 )
 from .repository import ProjectsRepository
 
@@ -210,3 +214,114 @@ class ProjectsService:
     def get_stats(self) -> dict[str, Any]:
         """Get projects statistics."""
         return self.repository.get_stats()
+
+    def create_project_from_artifacts(
+        self,
+        session_id: str,
+        title: str,
+        description: str,
+        artifacts: List[dict[str, Any]],
+        knowledge_base_id: str,
+        tags: Optional[list[str]] = None,
+        funding_goal: float = 100000.0,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> CrowdfundedProject:
+        """
+        Create a crowdfunded project from chat artifacts with crowdsourcing components.
+
+        Args:
+            session_id: Session ID where artifacts were collected
+            title: Project title
+            description: Project description
+            artifacts: List of artifact dictionaries
+            knowledge_base_id: Linked knowledge base ID
+            tags: Project tags
+            funding_goal: Target funding amount (default 100k RUB)
+            start_date: Funding campaign start date
+            end_date: Funding campaign end date
+
+        Returns:
+            Created CrowdfundedProject instance
+        """
+        if not title.strip():
+            raise ValueError("Project title is required")
+        if not description.strip():
+            raise ValueError("Project description is required")
+        if not artifacts:
+            raise ValueError("At least one artifact is required")
+
+        # Create funding tiers based on project complexity
+        funding_tiers = [
+            FundingTier(
+                id="seed_gardener",
+                title="Сеятель семян",
+                description="Поддержка начального этапа исследований поддержки биоразнообразия",
+                amount=1000.0,
+                rewards=[
+                    "Участие в сохранении локальных экосистем",
+                    "Имя в книге благодарностей проекта",
+                    "Месячные отчеты о прогрессе исследований",
+                    "Сертификат участника природоохранного проекта",
+                ],
+                limit=None,
+            ),
+            FundingTier(
+                id="forest_guardian",
+                title="Страж леса",
+                description="Активное участие в мониторинге и защите биоразнообразия",
+                amount=5000.0,
+                rewards=[
+                    "Все награды сеятеля семян",
+                    "Участие в планировании полевых исследований",
+                    "Доступ к образовательным материалам",
+                    "Возможность предложить направления исследований",
+                    "Персональная консультация с экспертами",
+                ],
+                limit=None,
+            ),
+            FundingTier(
+                id="biosphere_steward",
+                title="Хранитель биосферы",
+                description="Партнерство в научных исследованиях и сохранении экосистем",
+                amount=25000.0,
+                rewards=[
+                    "Все награды стража леса",
+                    "Совместные научные публикации",
+                    "Полный доступ к собранным датасетам",
+                    "Участие в конференциях и семинарах",
+                    "Возможность инициировать новые исследования",
+                    "Почетное звание 'Хранитель биосферы'",
+                ],
+                limit=None,
+            ),
+        ]
+
+        # Set default dates if not provided
+        if not start_date:
+            start_date = datetime.now().isoformat()
+        if not end_date:
+            # Default 3 months campaign
+            end_date = (datetime.now().replace(month=datetime.now().month + 3)).isoformat()
+
+        # Create project data for crowdfunded project
+        project_data = {
+            "title": title,
+            "description": description,
+            "status": "draft",
+            "creation_date": datetime.now(),
+            "update_date": datetime.now(),
+            "knowledge_base_id": knowledge_base_id,
+            "tags": tags or ["chat-artifacts", "crowdfunded", "crowdsourcing", "ecology"],
+            "funding_goal": funding_goal,
+            "current_funding": 0.0,
+            "start_date": start_date,
+            "end_date": end_date,
+            "backers": [],
+            "funding_tiers": [tier.model_dump() for tier in funding_tiers],
+        }
+
+        # Create project in repository
+        created_data = self.repository.create_project(project_data)
+
+        return CrowdfundedProject(**created_data)

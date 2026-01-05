@@ -83,6 +83,20 @@ class BackingCreate(BaseModel):
     public: bool = Field(True, description="Whether backing is public")
 
 
+class CreateProjectFromArtifacts(BaseModel):
+    """Request model for creating crowdfunded project from chat artifacts."""
+
+    session_id: str = Field(..., description="Session ID where artifacts were collected")
+    title: str = Field(..., min_length=1, max_length=200, description="Project title")
+    description: str = Field(..., min_length=1, description="Project description")
+    artifacts: list[dict[str, Any]] = Field(..., description="List of artifacts from chat")
+    knowledge_base_id: str = Field(..., description="Linked knowledge base ID")
+    tags: Optional[list[str]] = Field(None, description="Project tags")
+    funding_goal: float = Field(100000.0, ge=10000.0, description="Target funding amount in RUB")
+    start_date: Optional[str] = Field(None, description="Funding campaign start date (ISO format)")
+    end_date: Optional[str] = Field(None, description="Funding campaign end date (ISO format)")
+
+
 # Project endpoints
 @router.get(
     "",
@@ -480,6 +494,40 @@ async def get_project_backers(project_id: str):
         return service.get_backers(project_id)
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "InternalError", "message": str(e)},
+        )
+
+
+@router.post(
+    "/from-artifacts",
+    response_model=CrowdfundedProject,
+    status_code=status.HTTP_201_CREATED,
+    responses={400: {"model": dict}, 500: {"model": dict}},
+)
+async def create_project_from_artifacts(request: CreateProjectFromArtifacts):
+    """
+    Create a crowdsourced project from chat artifacts.
+    """
+    try:
+        return service.create_project_from_artifacts(
+            session_id=request.session_id,
+            title=request.title,
+            description=request.description,
+            artifacts=request.artifacts,
+            knowledge_base_id=request.knowledge_base_id,
+            tags=request.tags,
+            funding_goal=request.funding_goal,
+            start_date=request.start_date,
+            end_date=request.end_date,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "ValidationError", "message": str(e)},
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

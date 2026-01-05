@@ -6,8 +6,10 @@ import MarkdownRenderer from '~/components/chat/MarkdownRenderer'
 import { MessageActions } from '~/components/chat/MessageActions'
 import { MessageEditor } from '~/components/chat/MessageEditor'
 import { RelatedKnowledge } from '~/components/chat/RelatedKnowledge'
+import { ArtifactsPanel } from '~/components/ArtifactsPanel'
 import { useKnowledgeBase } from '~/contexts/KnowledgeBaseContext'
 import { useSession } from '~/contexts/SessionContext'
+import { useArtifacts, ArtifactsProvider } from '~/contexts/ArtifactsContext'
 import styles from '~/styles/interview.module.css'
 import type { Message, MessageSource } from '~/types/chat'
 import type { ConceptNode, TreeResponse } from '~/types/kb'
@@ -109,8 +111,30 @@ const InterviewPage = () => {
   const [editingMessageId, setEditingMessageId] = createSignal<number | string | null>(null)
   const [editingContent, setEditingContent] = createSignal('')
   const [currentLocation, setCurrentLocation] = createSignal<string | null>(null)
+  const [selectedText, setSelectedText] = createSignal<string>('')
+  const [selectedMessageId, setSelectedMessageId] = createSignal<string | number | null>(null)
+  const [showArtifactsPanel, setShowArtifactsPanel] = createSignal(false)
   const { sessionId, setSessionId } = useSession()
   const kb = useKnowledgeBase()
+  const artifacts = useArtifacts()
+
+  // Обработчик маркировки артефакта
+  const handleMarkArtifact = () => {
+    const text = selectedText()
+    const messageId = selectedMessageId()
+
+    if (text && messageId !== null) {
+      artifacts.addArtifact(messageId, text)
+      // Очищаем выделение после маркировки
+      setSelectedText('')
+      setSelectedMessageId(null)
+      // Снимаем выделение в браузере
+      const selection = window.getSelection()
+      if (selection) {
+        selection.removeAllRanges()
+      }
+    }
+  }
 
   // Проверка, достаточно ли контента для отображения аналитической панели (2 или больше сообщений)
   const canShowAnalyticsPanel = () => {
@@ -719,7 +743,7 @@ const InterviewPage = () => {
     if (detectorLoading()) return
 
     const currentMessage = messages().length > 0 ? messages()[messages().length - 1] : null
-    const searchQuery = currentMessage?.content || 'симбиоз экосистемы'
+    const searchQuery = currentMessage?.content || 'симбиоз с человеком внутри экосистемы'
 
     setDetectorLoading(true)
     setWebSearchError(false) // Сбрасываем ошибку перед началом
@@ -1092,15 +1116,24 @@ const InterviewPage = () => {
                   fallback={
                     <>
                       <div class={styles.conceptContent}>
-                        <MarkdownRenderer content={message.content} />
+                        <MarkdownRenderer
+                          content={message.content}
+                          messageId={message.id}
+                          onTextSelection={(text) => {
+                            setSelectedText(text)
+                            setSelectedMessageId(message.id)
+                          }}
+                        />
                       </div>
                       <MessageActions
                         content={message.content}
-                        onCopy={() => copyToClipboard(message.content)}
-                        onFactCheck={() => void runFactCheck(message.content)}
-                        onWebSearch={() => void performWebSearchForMessage(message.content)}
-                        onBookSearch={() => void performBookSearchForMessage(message.content)}
+                        selectedText={selectedMessageId() === message.id ? selectedText() : undefined}
+                        onCopy={() => copyToClipboard(selectedText() || message.content)}
+                        onFactCheck={() => void runFactCheck(selectedText() || message.content)}
+                        onWebSearch={() => void performWebSearchForMessage(selectedText() || message.content)}
+                        onBookSearch={() => void performBookSearchForMessage(selectedText() || message.content)}
                         onEdit={() => startEditing(message.id, message.content)}
+                        onMarkArtifact={handleMarkArtifact}
                         isFactCheckLoading={detectorLoading()}
                         sources={message.role === 'assistant' ? message.sources : undefined}
                       />
@@ -1214,6 +1247,8 @@ const InterviewPage = () => {
                 hasWebSearchError={webSearchError()}
                 hasLocationError={locationError()}
                 hasBookSearchError={bookSearchError()}
+                onShowArtifacts={() => setShowArtifactsPanel(true)}
+                artifactsCount={artifacts.artifacts().length}
               />
               <button
                 onClick={() => {
@@ -1401,8 +1436,23 @@ const InterviewPage = () => {
           </div>
         </div>
       </Show>
+
+      {/* Панель артефактов */}
+      <Show when={showArtifactsPanel()}>
+        <ArtifactsPanel
+          onClose={() => setShowArtifactsPanel(false)}
+          onCreateProject={() => {
+            // Обновляем список проектов или показываем уведомление
+            setShowArtifactsPanel(false)
+          }}
+        />
+      </Show>
     </div>
   )
 }
 
-export default InterviewPage
+export default () => (
+  <ArtifactsProvider>
+    <InterviewPage />
+  </ArtifactsProvider>
+)
