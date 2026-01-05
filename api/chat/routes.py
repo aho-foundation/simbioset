@@ -234,7 +234,7 @@ async def create_chat_session(session_data: ChatSessionCreate):
     """
     try:
         # Create a new chat session
-        session = chat_session_service.create_session(session_data)
+        session = await chat_session_service.create_session(session_data)
 
         # If ecosystem data is provided, set up the session location
         if session_data.ecosystem:
@@ -249,7 +249,7 @@ async def create_chat_session(session_data: ChatSessionCreate):
                 "parent_session_id": session_data.ecosystem.get("parentSessionId"),
                 "artifacts_summary": session_data.ecosystem.get("artifactsSummary"),
             }
-            chat_session_service.update_session_location(session.id, ecosystem_data)
+            await chat_session_service.update_session_location(session.id, ecosystem_data)
 
         return session
     except Exception as e:
@@ -341,7 +341,7 @@ async def send_chat_message(message_data: ChatMessageCreate, request: Request, r
             actual_session_id = session_id  # type: ignore
 
         # Update chat session message count
-        chat_session_service.increment_message_count(actual_session_id)
+        await chat_session_service.increment_message_count(actual_session_id)
 
         # Link chat session to user session if not already linked (async)
         if session_id and user_session and not user_session.get("chat_session_id"):
@@ -391,7 +391,7 @@ async def send_chat_message(message_data: ChatMessageCreate, request: Request, r
         # User observation extraction is now handled by LLM instead of keyword matching
 
         # Получаем сохраненную локализацию сессии
-        chat_session = chat_session_service.get_session(actual_session_id)
+        chat_session = await chat_session_service.get_session(actual_session_id)
         session_location_data = chat_session.location if chat_session and chat_session.location else None
 
         # Определяем локацию из текста сообщения пользователя (если явно упомянута)
@@ -440,7 +440,7 @@ async def send_chat_message(message_data: ChatMessageCreate, request: Request, r
             ecosystems = user_location_data.get("ecosystems", [])
 
             # Автоматически сохраняем эту локализацию в сессии
-            chat_session_service.update_session_location(
+            await chat_session_service.update_session_location(
                 actual_session_id,
                 {
                     "location": location,
@@ -774,7 +774,7 @@ async def get_current_chat_session(request: Request, response: Response):
             user_session = await session_manager.get_session(session_id)
             if user_session and user_session.get("chat_session_id"):
                 # Get chat session
-                chat_session = chat_session_service.get_session(user_session["chat_session_id"])
+                chat_session = await chat_session_service.get_session(user_session["chat_session_id"])
                 if chat_session:
                     return chat_session
 
@@ -818,7 +818,7 @@ async def get_chat_session(sessionId: str):
     Returns the chat session.
     """
     try:
-        session = chat_session_service.get_session(sessionId)
+        session = await chat_session_service.get_session(sessionId)
         if not session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -849,7 +849,7 @@ async def get_all_chat_sessions():
     """
     try:
         # Get all chat sessions
-        sessions = chat_session_service.get_all_sessions()
+        sessions = await chat_session_service.get_all_sessions()
         return sessions
     except Exception as e:
         raise HTTPException(
@@ -896,7 +896,7 @@ async def localize_ecosystem(request: LocalizeRequest):
             ecosystem_data["coordinates"] = {"latitude": request.latitude, "longitude": request.longitude}
 
         # Получаем сессию чата
-        chat_session = chat_session_service.get_session(request.sessionId)
+        chat_session = await chat_session_service.get_session(request.sessionId)
         if not chat_session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -917,7 +917,7 @@ async def localize_ecosystem(request: LocalizeRequest):
             "timestamp": int(time.time() * 1000),  # Время обновления
             "action": getattr(request, "action", "localize"),
         }
-        chat_session_service.update_session_location(request.sessionId, updated_location_data)
+        await chat_session_service.update_session_location(request.sessionId, updated_location_data)
 
         # Логируем обновление локализации
         logger.info(f"Обновлена локализация сессии {request.sessionId}: {updated_location_data}")
@@ -1130,14 +1130,14 @@ async def search_books_for_message(message: str, web_search_service, session_id:
             try:
                 # Save to session context for now (temporary solution)
                 # In future: create proper books table and indexing
-                chat_session = chat_session_service.get_session(session_id)
+                chat_session = await chat_session_service.get_session(session_id)
                 if chat_session:
                     current_books = chat_session.indexed_books or []
                     current_books.extend(indexed_books)
                     # Keep only last 50 books per session to avoid memory issues
                     if len(current_books) > 50:
                         current_books = current_books[-50:]
-                    chat_session_service.update_session_books(session_id, current_books)
+                    await chat_session_service.update_session_books(session_id, current_books)
             except Exception as e:
                 log(f"Error saving indexed books: {e}")
 

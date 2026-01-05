@@ -12,6 +12,7 @@ from api.llm import call_llm
 from api.logger import root_logger
 
 from .models import ChatSession, ChatSessionCreate
+from api.sessions import session_manager
 
 log = root_logger.debug
 
@@ -78,13 +79,13 @@ _load_starters_cache()
 
 
 class ChatSessionService:
-    """Service for managing chat sessions."""
+    """Service for managing chat sessions with Redis persistence."""
 
     def __init__(self):
         """Initialize service."""
-        self._sessions: dict[str, ChatSession] = {}
+        self._sessions_cache: dict[str, ChatSession] = {}  # In-memory cache for performance
 
-    def create_session(self, session_data: ChatSessionCreate) -> ChatSession:
+    async def create_session(self, session_data: ChatSessionCreate) -> ChatSession:
         """
         Create a new chat session.
 
@@ -107,10 +108,15 @@ class ChatSessionService:
             location=session_data.ecosystem,
         )
 
-        self._sessions[session_id] = session
+        # Save to Redis
+        session_dict = session.model_dump()
+        await session_manager.create_session(session_dict)
+
+        # Cache in memory
+        self._sessions_cache[session_id] = session
         return session
 
-    def get_session(self, session_id: str) -> ChatSession | None:
+    async def get_session(self, session_id: str) -> ChatSession | None:
         """
         Get session by ID.
 
@@ -120,9 +126,25 @@ class ChatSessionService:
         Returns:
             ChatSession or None if not found
         """
-        return self._sessions.get(session_id)
+        # Check cache first
+        if session_id in self._sessions_cache:
+            return self._sessions_cache[session_id]
 
-    def update_session(self, session_id: str, updates: dict) -> ChatSession | None:
+        # Load from Redis
+        session_data = await session_manager.get_session(session_id)
+        if session_data:
+            try:
+                session = ChatSession(**session_data)
+                # Cache in memory
+                self._sessions_cache[session_id] = session
+                return session
+            except Exception as e:
+                log(f"⚠️ Failed to parse session {session_id}: {e}")
+                return None
+
+        return None
+
+    async def update_session(self, session_id: str, updates: dict) -> ChatSession | None:
         """
         Update session.
 
@@ -133,7 +155,7 @@ class ChatSessionService:
         Returns:
             Updated ChatSession or None if not found
         """
-        session = self._sessions.get(session_id)
+        session = await self.get_session(session_id)
         if not session:
             return None
 
@@ -142,9 +164,16 @@ class ChatSessionService:
                 setattr(session, key, value)
 
         session.updated_at = int(time.time() * 1000)
+
+        # Save to Redis
+        session_dict = session.model_dump()
+        await session_manager.update_session(session_id, session_dict)
+
+        # Update cache
+        self._sessions_cache[session_id] = session
         return session
 
-    def increment_message_count(self, session_id: str) -> ChatSession | None:
+    async def increment_message_count(self, session_id: str) -> ChatSession | None:
         """
         Increment message count for session.
 
@@ -154,24 +183,34 @@ class ChatSessionService:
         Returns:
             Updated ChatSession or None if not found
         """
-        session = self._sessions.get(session_id)
+        session = await self.get_session(session_id)
         if not session:
             return None
 
         session.message_count += 1
         session.updated_at = int(time.time() * 1000)
+
+        # Save to Redis
+        session_dict = session.model_dump()
+        await session_manager.update_session(session_id, session_dict)
+
+        # Update cache
+        self._sessions_cache[session_id] = session
         return session
 
-    def get_all_sessions(self) -> list[ChatSession]:
+    async def get_all_sessions(self) -> list[ChatSession]:
         """
         Get all sessions.
 
         Returns:
             List of all ChatSessions
         """
-        return list(self._sessions.values())
+        # Note: This is a simplified implementation. In production, you might want to
+        # implement a way to list all sessions from Redis, but for now we'll return
+        # cached sessions only
+        return list(self._sessions_cache.values())
 
-    def update_session_location(self, session_id: str, location_data: Optional[dict]) -> ChatSession | None:
+    async def update_session_location(self, session_id: str, location_data: Optional[dict]) -> ChatSession | None:
         """
         Update session location and ecosystem data.
 
@@ -182,15 +221,22 @@ class ChatSessionService:
         Returns:
             Updated ChatSession or None if not found
         """
-        session = self._sessions.get(session_id)
+        session = await self.get_session(session_id)
         if not session:
             return None
 
         session.location = location_data
         session.updated_at = int(time.time_ns() / 1_000_000)  # Используем наносекунды для большей точности
+
+        # Save to Redis
+        session_dict = session.model_dump()
+        await session_manager.update_session(session_id, session_dict)
+
+        # Update cache
+        self._sessions_cache[session_id] = session
         return session
 
-    def update_session_books(self, session_id: str, books_data: list) -> ChatSession | None:
+    async def update_session_books(self, session_id: str, books_data: list) -> ChatSession | None:
         """
         Update session indexed books data.
 
@@ -201,7 +247,7 @@ class ChatSessionService:
         Returns:
             Updated ChatSession or None if not found
         """
-        session = self._sessions.get(session_id)
+        session = await self.get_session(session_id)
         if not session:
             return None
 
@@ -210,9 +256,16 @@ class ChatSessionService:
 
         session.indexed_books = books_data
         session.updated_at = int(time.time() * 1000)
+
+        # Save to Redis
+        session_dict = session.model_dump()
+        await session_manager.update_session(session_id, session_dict)
+
+        # Update cache
+        self._sessions_cache[session_id] = session
         return session
 
-    def delete_session(self, session_id: str) -> bool:
+    async def delete_session(self, session_id: str) -> bool:
         """
         Delete session.
 
@@ -222,10 +275,14 @@ class ChatSessionService:
         Returns:
             True if deleted, False if not found
         """
-        if session_id in self._sessions:
-            del self._sessions[session_id]
-            return True
-        return False
+        # Delete from Redis
+        deleted_from_redis = await session_manager.delete_session(session_id)
+
+        # Delete from cache
+        if session_id in self._sessions_cache:
+            del self._sessions_cache[session_id]
+
+        return deleted_from_redis
 
 
 async def generate_starters() -> List[str]:

@@ -16,7 +16,7 @@ log = root_logger.debug
 class SessionManager:
     """Менеджер сессий с хранением в Redis (async для неблокирующих операций)."""
 
-    SESSION_TTL = 2592000  # 30 дней в секундах
+    SESSION_TTL = None  # Бессрочное хранение
 
     def __init__(self) -> None:
         """Инициализация подключения к Redis (async клиент)."""
@@ -47,7 +47,10 @@ class SessionManager:
         """
         session_id = str(uuid.uuid4())
         redis_client = await self._get_redis()
-        await redis_client.setex(f"session:{session_id}", self.SESSION_TTL, json.dumps(data))
+        if self.SESSION_TTL is None:
+            await redis_client.set(f"session:{session_id}", json.dumps(data))
+        else:
+            await redis_client.setex(f"session:{session_id}", self.SESSION_TTL, json.dumps(data))
         return session_id
 
     async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -63,8 +66,9 @@ class SessionManager:
         redis_client = await self._get_redis()
         data = await redis_client.get(f"session:{session_id}")
         if data:
-            # Обновляем TTL при доступе
-            await redis_client.expire(f"session:{session_id}", self.SESSION_TTL)
+            # Обновляем TTL при доступе (только если TTL установлен)
+            if self.SESSION_TTL is not None:
+                await redis_client.expire(f"session:{session_id}", self.SESSION_TTL)
             return json.loads(data)
         return None
 
@@ -83,7 +87,10 @@ class SessionManager:
         key = f"session:{session_id}"
         exists = await redis_client.exists(key)
         if exists:
-            await redis_client.setex(key, self.SESSION_TTL, json.dumps(data))
+            if self.SESSION_TTL is None:
+                await redis_client.set(key, json.dumps(data))
+            else:
+                await redis_client.setex(key, self.SESSION_TTL, json.dumps(data))
             return True
         return False
 
@@ -139,7 +146,10 @@ class SessionManager:
         session_id = await self.create_session(session_data)
 
         # Сохраняем маппинг telegram_user_id -> session_id
-        await redis_client.setex(mapping_key, self.SESSION_TTL, session_id)
+        if self.SESSION_TTL is None:
+            await redis_client.set(mapping_key, session_id)
+        else:
+            await redis_client.setex(mapping_key, self.SESSION_TTL, session_id)
 
         return session_id
 
