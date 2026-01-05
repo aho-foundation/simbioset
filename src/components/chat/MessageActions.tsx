@@ -25,11 +25,29 @@ interface MessageActionsProps {
 }
 
 export const MessageActions: Component<MessageActionsProps> = (props) => {
+  // Предотвращаем исчезновение тулбара при hover на источниках
+  const handleSourcesHover = (e: MouseEvent) => {
+    e.stopPropagation()
+    const messageActions = (e.currentTarget as Element)?.closest(`.${styles.messageActions}`)
+    if (messageActions) {
+      ;(messageActions as HTMLElement).style.opacity = '1'
+      ;(messageActions as HTMLElement).style.visibility = 'visible'
+    }
+  }
+
   return (
     <div class={styles.messageActions}>
       <div class={styles.messageActionsLeft}>
         <Show when={props.sources && props.sources.length > 0}>
-          <SourcesList sources={props.sources!} />
+          <div
+            onMouseEnter={handleSourcesHover}
+            onMouseMove={handleSourcesHover}
+            onMouseLeave={(_e) => {
+              // Не делаем ничего, пусть родительский hover управляет
+            }}
+          >
+            <SourcesList sources={props.sources!} />
+          </div>
         </Show>
       </div>
       <div class={styles.messageActionsRight}>
