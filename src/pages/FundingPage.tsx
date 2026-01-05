@@ -24,7 +24,7 @@ type Recommendation = {
   category: string
 }
 
-const FundingPage: Component = () => {
+const ProjectsPage: Component = () => {
   const { t } = useI18n()
   const [selectedInitiative, setSelectedInitiative] = createSignal<EcoInitiative | null>(null)
   const [refetchTrigger, setRefetchTrigger] = createSignal(0)
@@ -371,4 +371,4 @@ const FundingPage: Component = () => {
   )
 }
 
-export default FundingPage
+export default ProjectsPage

@@ -1,15 +1,15 @@
 import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import { isServer } from 'solid-js/web'
+import { ArtifactsPanel } from '~/components/ArtifactsPanel'
 import { ConversationActions } from '~/components/chat/ConversationActions'
 import { DetectorsToolbar } from '~/components/chat/DetectorsToolbar'
 import MarkdownRenderer from '~/components/chat/MarkdownRenderer'
 import { MessageActions } from '~/components/chat/MessageActions'
 import { MessageEditor } from '~/components/chat/MessageEditor'
 import { RelatedKnowledge } from '~/components/chat/RelatedKnowledge'
-import { ArtifactsPanel } from '~/components/ArtifactsPanel'
+import { ArtifactsProvider, useArtifacts } from '~/contexts/ArtifactsContext'
 import { useKnowledgeBase } from '~/contexts/KnowledgeBaseContext'
 import { useSession } from '~/contexts/SessionContext'
-import { useArtifacts, ArtifactsProvider } from '~/contexts/ArtifactsContext'
 import styles from '~/styles/interview.module.css'
 import type { Message, MessageSource } from '~/types/chat'
 import type { ConceptNode, TreeResponse } from '~/types/kb'
@@ -440,6 +440,32 @@ const InterviewPage = () => {
       }
       // Обновляем сообщения, добавляя новое AI сообщение
       setMessages((prev) => [...prev, aiMessage])
+
+      // Автоматически предлагаем артефакты из нового ответа AI
+      try {
+        const currentMessages = [...messages(), aiMessage]
+        const suggestRes = await fetch('/api/artifacts/suggest-from-messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId() || 'temp',
+            messages: currentMessages.map((m) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content
+            }))
+          })
+        })
+        if (suggestRes.ok) {
+          const suggestData = await suggestRes.json()
+          if (suggestData.suggested_count > 0) {
+            // Артефакты обновятся автоматически через API
+            console.log(`Предложено ${suggestData.suggested_count} новых артефактов`)
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to suggest artifacts automatically:', error)
+      }
 
       // Обновляем историю - createEffect автоматически обновит дерево при изменении истории
       void refetchHistory()
@@ -1106,105 +1132,120 @@ const InterviewPage = () => {
     <div class={styles.interviewContainer}>
       <div class={styles.chatMain} style={{ 'padding-bottom': chatMainPaddingBottom() }}>
         <div class={styles.chatMessages}>
-          <For each={messages()}>
-            {(message) => (
-              <div
-                class={`${styles.conceptBubble} ${message.role === 'user' ? styles.userConcept : styles.aiConcept}`}
-              >
-                <Show
-                  when={editingMessageId() !== null && String(editingMessageId()) === String(message.id)}
-                  fallback={
-                    <>
-                      <div class={styles.conceptContent}>
-                        <MarkdownRenderer
-                          content={message.content}
-                          messageId={message.id}
-                          onTextSelection={(text) => {
-                            setSelectedText(text)
-                            setSelectedMessageId(message.id)
-                          }}
-                        />
-                      </div>
-                      <MessageActions
-                        content={message.content}
-                        selectedText={selectedMessageId() === message.id ? selectedText() : undefined}
-                        onCopy={() => copyToClipboard(selectedText() || message.content)}
-                        onFactCheck={() => void runFactCheck(selectedText() || message.content)}
-                        onWebSearch={() => void performWebSearchForMessage(selectedText() || message.content)}
-                        onBookSearch={() => void performBookSearchForMessage(selectedText() || message.content)}
-                        onEdit={() => startEditing(message.id, message.content)}
-                        onMarkArtifact={handleMarkArtifact}
-                        isFactCheckLoading={detectorLoading()}
-                        sources={message.role === 'assistant' ? message.sources : undefined}
-                      />
-                    </>
-                  }
-                >
-                  <MessageEditor
-                    content={editingContent()}
-                    onContentChange={setEditingContent}
-                    onSave={() => void saveEditedMessage(Number(message.id))}
-                    onCancel={cancelEditing}
-                  />
-                </Show>
-              </div>
-            )}
-          </For>
-
-          <Show when={isLoading()}>
-            <div class={`${styles.conceptBubble} ${styles.aiConcept} ${styles.loading}`}>
-              <div class={styles.typingIndicator}>
-                <div class={styles.dot} />
-                <div class={styles.dot} />
-                <div class={styles.dot} />
-              </div>
-            </div>
-          </Show>
-
-          {/* Show buttons only for new sessions (no messages yet) */}
-          <Show when={messages().length === 0}>
-            <div class={styles.quickButtons}>
-              <div class={styles.quickButtonsTitle}>Начните разговор:</div>
-              <div class={styles.quickButtonsGrid}>
-                <For each={starters()}>
-                  {(starter, index) => (
-                    <button
-                      class={styles.quickButton}
-                      onClick={() => {
-                        setInputValue(starter)
-                        void sendMessage()
-                      }}
-                    >
-                      <span class={styles.quickButtonIcon}>
-                        {index() === 0 ? '🤝' : index() === 1 ? '🌱' : '💡'}
-                      </span>
-                      <span class={styles.quickButtonText}>{starter}</span>
-                    </button>
-                  )}
-                </For>
-                <button
-                  class={styles.moreButton}
-                  onClick={() => {
-                    void loadMoreStarters()
-                  }}
-                  disabled={isLoadingMoreStarters()}
-                  title="Показать другие варианты"
+          <div class={styles.messagesContainer}>
+            <For each={messages()}>
+              {(message) => (
+                <div
+                  class={`${styles.conceptBubble} ${message.role === 'user' ? styles.userConcept : styles.aiConcept}`}
                 >
                   <Show
-                    when={isLoadingMoreStarters()}
-                    fallback={<span class={styles.moreButtonIcon}>↻</span>}
+                    when={editingMessageId() !== null && String(editingMessageId()) === String(message.id)}
+                    fallback={
+                      <>
+                        <div class={styles.conceptContent}>
+                          <MarkdownRenderer
+                            content={message.content}
+                            messageId={message.id}
+                            suggestedArtifacts={artifacts
+                              .artifacts()
+                              .filter((a) => a.suggested)
+                              .map((a) => ({
+                                id: a.id,
+                                selected_text: a.selectedText,
+                                message_id: String(a.messageId),
+                                suggested: a.suggested || false
+                              }))}
+                            onTextSelection={(text) => {
+                              setSelectedText(text)
+                              setSelectedMessageId(message.id)
+                            }}
+                          />
+                        </div>
+                        <MessageActions
+                          content={message.content}
+                          selectedText={selectedMessageId() === message.id ? selectedText() : undefined}
+                          onCopy={() => copyToClipboard(selectedText() || message.content)}
+                          onFactCheck={() => void runFactCheck(selectedText() || message.content)}
+                          onWebSearch={() =>
+                            void performWebSearchForMessage(selectedText() || message.content)
+                          }
+                          onBookSearch={() =>
+                            void performBookSearchForMessage(selectedText() || message.content)
+                          }
+                          onEdit={() => startEditing(message.id, message.content)}
+                          onMarkArtifact={handleMarkArtifact}
+                          isFactCheckLoading={detectorLoading()}
+                          sources={message.role === 'assistant' ? message.sources : undefined}
+                        />
+                      </>
+                    }
                   >
-                    <div class={styles.typingIndicator}>
-                      <div class={styles.dot} />
-                      <div class={styles.dot} />
-                      <div class={styles.dot} />
-                    </div>
+                    <MessageEditor
+                      content={editingContent()}
+                      onContentChange={setEditingContent}
+                      onSave={() => void saveEditedMessage(Number(message.id))}
+                      onCancel={cancelEditing}
+                    />
                   </Show>
-                  <span class={styles.moreButtonText}>Ещё</span>
-                </button>
+                </div>
+              )}
+            </For>
+
+            <Show when={isLoading()}>
+              <div class={`${styles.conceptBubble} ${styles.aiConcept} ${styles.loading}`}>
+                <div class={styles.typingIndicator}>
+                  <div class={styles.dot} />
+                  <div class={styles.dot} />
+                  <div class={styles.dot} />
+                </div>
               </div>
-            </div>
-          </Show>
+            </Show>
+
+            {/* Show buttons only for new sessions (no messages yet) */}
+            <Show when={messages().length === 0}>
+              <div class={styles.quickButtons}>
+                <div class={styles.quickButtonsTitle}>Начните разговор:</div>
+                <div class={styles.quickButtonsGrid}>
+                  <For each={starters()}>
+                    {(starter, index) => (
+                      <button
+                        class={styles.quickButton}
+                        onClick={() => {
+                          setInputValue(starter)
+                          void sendMessage()
+                        }}
+                      >
+                        <span class={styles.quickButtonIcon}>
+                          {index() === 0 ? '🤝' : index() === 1 ? '🌱' : '💡'}
+                        </span>
+                        <span class={styles.quickButtonText}>{starter}</span>
+                      </button>
+                    )}
+                  </For>
+                  <button
+                    class={styles.moreButton}
+                    onClick={() => {
+                      void loadMoreStarters()
+                    }}
+                    disabled={isLoadingMoreStarters()}
+                    title="Показать другие варианты"
+                  >
+                    <Show
+                      when={isLoadingMoreStarters()}
+                      fallback={<span class={styles.moreButtonIcon}>↻</span>}
+                    >
+                      <div class={styles.typingIndicator}>
+                        <div class={styles.dot} />
+                        <div class={styles.dot} />
+                        <div class={styles.dot} />
+                      </div>
+                    </Show>
+                    <span class={styles.moreButtonText}>Ещё</span>
+                  </button>
+                </div>
+              </div>
+            </Show>
+          </div>
         </div>
 
         <div class={styles.chatInputArea} ref={inputAreaRef}>
@@ -1249,6 +1290,7 @@ const InterviewPage = () => {
                 hasBookSearchError={bookSearchError()}
                 onShowArtifacts={() => setShowArtifactsPanel(true)}
                 artifactsCount={artifacts.artifacts().length}
+                suggestedArtifactsCount={artifacts.artifacts().filter((a) => a.suggested).length}
               />
               <button
                 onClick={() => {

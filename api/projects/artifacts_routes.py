@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api/artifacts", tags=["Artifacts"])
 async def get_artifacts(
     session_id: str = Query(..., description="Session ID to get artifacts for"),
     artifact_type: Optional[str] = Query(None, description="Filter by artifact type"),
+    include_suggestions: bool = Query(True, description="Include suggested artifacts"),
 ):
     """
     Get all artifacts for a session, optionally filtered by type.
@@ -27,7 +28,53 @@ async def get_artifacts(
         else:
             artifacts = await artifacts_manager.get_artifacts(session_id)
 
+        # Фильтруем предложенные артефакты если не нужно их включать
+        if not include_suggestions:
+            artifacts = [a for a in artifacts if not a.suggested]
+
         return [artifact.to_dict() for artifact in artifacts]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "InternalError", "message": str(e)},
+        )
+
+
+@router.get(
+    "/suggestions",
+    response_model=List[Dict[str, Any]],
+    responses={500: {"model": Dict}},
+)
+async def get_suggested_artifacts(
+    session_id: str = Query(..., description="Session ID to get suggested artifacts for"),
+):
+    """
+    Get all suggested (automatically generated) artifacts for a session.
+    """
+    try:
+        artifacts = await artifacts_manager.get_suggested_artifacts(session_id)
+        return [artifact.to_dict() for artifact in artifacts]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "InternalError", "message": str(e)},
+        )
+
+
+@router.get(
+    "/suggestions/unreviewed",
+    response_model=Dict[str, Any],
+    responses={500: {"model": Dict}},
+)
+async def get_unreviewed_suggestions(
+    session_id: str = Query(..., description="Session ID to get unreviewed suggestions for"),
+):
+    """
+    Get count and list of unreviewed suggested artifacts for a session.
+    """
+    try:
+        artifacts = await artifacts_manager.get_unreviewed_suggestions(session_id)
+        return {"count": len(artifacts), "artifacts": [artifact.to_dict() for artifact in artifacts]}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -136,6 +183,68 @@ async def clear_artifacts(
 
 
 @router.post(
+    "/suggestions/{artifact_id}/accept",
+    response_model=Dict[str, Any],
+    responses={404: {"model": Dict}, 500: {"model": Dict}},
+)
+async def accept_suggestion(
+    artifact_id: str,
+    session_id: str = Body(..., description="Session ID"),
+):
+    """
+    Accept a suggested artifact (convert it to a regular artifact).
+    """
+    try:
+        success = await artifacts_manager.accept_suggestion(session_id, artifact_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "ArtifactNotFound", "message": f"Suggested artifact {artifact_id} not found"},
+            )
+
+        return {"message": "Suggestion accepted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "InternalError", "message": str(e)},
+        )
+
+
+@router.post(
+    "/suggestions/{artifact_id}/reject",
+    response_model=Dict[str, Any],
+    responses={404: {"model": Dict}, 500: {"model": Dict}},
+)
+async def reject_suggestion(
+    artifact_id: str,
+    session_id: str = Body(..., description="Session ID"),
+):
+    """
+    Reject a suggested artifact (remove it).
+    """
+    try:
+        success = await artifacts_manager.reject_suggestion(session_id, artifact_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "ArtifactNotFound", "message": f"Suggested artifact {artifact_id} not found"},
+            )
+
+        return {"message": "Suggestion rejected successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "InternalError", "message": str(e)},
+        )
+
+
+@router.post(
     "/analyze-conversation",
     response_model=Dict[str, Any],
     responses={400: {"model": Dict}, 500: {"model": Dict}},
@@ -234,6 +343,40 @@ async def create_project_from_conversation(
 
 
 @router.post(
+    "/suggest-from-messages",
+    response_model=Dict[str, Any],
+    responses={400: {"model": Dict}, 500: {"model": Dict}},
+)
+async def suggest_artifacts_from_messages(
+    session_id: str = Body(..., description="Session ID"),
+    messages: list[Dict[str, Any]] = Body(..., description="List of conversation messages"),
+):
+    """
+    Automatically suggest artifacts based on conversation analysis.
+    """
+    try:
+        if not messages:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "ValidationError", "message": "Messages list cannot be empty"},
+            )
+
+        count = await artifacts_manager.suggest_artifacts_from_messages(session_id, messages)
+
+        return {
+            "suggested_count": count,
+            "message": f"Automatically suggested {count} new artifacts from conversation",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "InternalError", "message": str(e)},
+        )
+
+
+@router.post(
     "/convert-artifacts-to-projects",
     response_model=Dict[str, Any],
     responses={400: {"model": Dict}, 500: {"model": Dict}},
@@ -258,13 +401,6 @@ async def convert_artifacts_to_projects(
             "summary": result.get("summary", {}),
             "message": f"Converted {len(artifacts)} artifacts into {len(result.get('projects', []))} projects",
         }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "InternalError", "message": str(e)},
-        )
     except HTTPException:
         raise
     except Exception as e:

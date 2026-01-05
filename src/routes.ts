@@ -1,9 +1,9 @@
 import type { RouteDefinition } from '@solidjs/router'
 import { lazy } from 'solid-js'
 import NotFound from './errors/404'
-import FundingPage from './pages/FundingPage'
 import Home from './pages/HomePage'
 import InterviewPage from './pages/InterviewPage'
+import ProjectsPage from './pages/ProjectsPage'
 
 export const routes: RouteDefinition[] = [
   {
@@ -15,8 +15,8 @@ export const routes: RouteDefinition[] = [
     component: InterviewPage
   },
   {
-    path: '/funds',
-    component: FundingPage
+    path: '/projects',
+    component: ProjectsPage
   },
   {
     path: '/knowledge',

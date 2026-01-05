@@ -79,6 +79,110 @@ def convert_artifacts_to_projects_stub(artifacts: List[Dict[str, Any]]) -> Dict[
     }
 
 
+def extract_potential_artifacts_from_message(
+    message_content: str, message_id: str, confidence_threshold: float = 0.7
+) -> List[Dict[str, Any]]:
+    """
+    Анализирует сообщение и извлекает потенциальные артефакты.
+
+    Args:
+        message_content: Текст сообщения
+        message_id: ID сообщения
+        confidence_threshold: Минимальная уверенность для предложения
+
+    Returns:
+        Список потенциальных артефактов
+    """
+    potential_artifacts = []
+
+    # Простые правила для поиска потенциальных артефактов
+    # Можно расширить с помощью LLM в будущем
+
+    # Ищем предложения, которые выглядят как идеи проектов
+    import re
+
+    # Паттерны для поиска идей проектов
+    project_patterns = [
+        r"(?:создать|разработать|реализовать|сделать|запустить)\s+([^.!?]+)",
+        r"(?:проект|идея|инициатива)\s*:\s*([^.!?]+)",
+        r"(?:предлагаю|хотелось бы|нужно)\s+([^.!?]+)",
+        r"(?:платформа|приложение|сервис|система)\s+(?:для|по)\s+([^.!?]+)",
+    ]
+
+    sentences = re.split(r"[.!?]+", message_content)
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if len(sentence) < 20:  # Пропускаем слишком короткие предложения
+            continue
+
+        confidence = 0.0
+        artifact_type = "note"
+
+        # Проверяем на соответствие паттернам
+        for pattern in project_patterns:
+            if re.search(pattern, sentence, re.IGNORECASE):
+                confidence = 0.8
+                artifact_type = "project_idea"
+                break
+
+        # Дополнительные проверки для повышения уверенности
+        if any(word in sentence.lower() for word in ["экосистема", "биосфера", "экология", "проект", "инициатива"]):
+            confidence = min(confidence + 0.2, 1.0)
+
+        # Проверяем на наличие конкретных деталей
+        if re.search(r"\d+", sentence):  # Цифры
+            confidence = min(confidence + 0.1, 1.0)
+        if len(sentence.split()) > 10:  # Длинное предложение
+            confidence = min(confidence + 0.1, 1.0)
+
+        # Если уверенность выше порога, добавляем как потенциальный артефакт
+        if confidence >= confidence_threshold:
+            potential_artifacts.append(
+                {
+                    "selected_text": sentence,
+                    "content": sentence,
+                    "type": artifact_type,
+                    "confidence": confidence,
+                    "message_id": message_id,
+                }
+            )
+
+    return potential_artifacts
+
+
+async def suggest_artifacts_from_messages(session_id: str, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Анализирует сообщения диалога и предлагает артефакты автоматически.
+
+    Args:
+        session_id: ID сессии
+        messages: Список сообщений для анализа
+
+    Returns:
+        Список предложенных артефактов
+    """
+    suggested_artifacts = []
+
+    # Анализируем последние сообщения (не более 10)
+    recent_messages = messages[-10:] if len(messages) > 10 else messages
+
+    for message in recent_messages:
+        if message.get("role") != "assistant":  # Анализируем только ответы ассистента
+            continue
+
+        content = message.get("content", "")
+        message_id = message.get("id", str(hash(content)))  # Используем hash если нет ID
+
+        # Извлекаем потенциальные артефакты из сообщения
+        potential_artifacts = extract_potential_artifacts_from_message(content, message_id)
+
+        for artifact in potential_artifacts:
+            suggested_artifacts.append(artifact)
+
+    return suggested_artifacts
+
+
 def validate_project_structure(project_data: Dict[str, Any]) -> bool:
     """
     Проверяет корректность структуры проекта.

@@ -1,6 +1,5 @@
 import { A } from '@solidjs/router'
 import { Component } from 'solid-js'
-import ParagraphSearch from '~/components/ParagraphSearch'
 import { useI18n } from '~/i18n'
 
 import styles from '~/styles/home.module.css'
@@ -169,7 +168,7 @@ const Home: Component = () => {
           <A href="/knowledge" class={styles.ctaButtonLarge} activeClass={styles.active}>
             {t('Знания')}
           </A>
-          <A href="/funds" class={styles.ctaButtonLarge} activeClass={styles.active}>
+          <A href="/projects" class={styles.ctaButtonLarge} activeClass={styles.active}>
             {t('Финансирование')}
           </A>
         </div>

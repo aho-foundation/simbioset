@@ -54,6 +54,7 @@ interface ConversationActionsProps {
   hasLocationError?: boolean
   hasBookSearchError?: boolean
   artifactsCount?: number
+  suggestedArtifactsCount?: number
 }
 
 export const ConversationActions: Component<ConversationActionsProps> = (props) => {
@@ -129,10 +130,8 @@ export const ConversationActions: Component<ConversationActionsProps> = (props) 
         <button class={styles.copyButton} onClick={props.onShowArtifacts} title="Артефакты беседы">
           <div class={badgeStyles.badgeContainer}>
             <ArtifactIcon />
-            <Show when={props.artifactsCount && props.artifactsCount > 0}>
-              <div class={badgeStyles.artifactBadge}>
-                {props.artifactsCount}
-              </div>
+            <Show when={props.suggestedArtifactsCount && props.suggestedArtifactsCount > 0}>
+              <div class={badgeStyles.suggestedArtifactBadge}>{props.suggestedArtifactsCount}</div>
             </Show>
           </div>
         </button>

@@ -6,16 +6,48 @@ interface MarkdownRendererProps {
   content: string
   onTextSelection?: (selectedText: string) => void
   messageId?: string | number
+  suggestedArtifacts?: Array<{
+    id: string
+    selected_text: string
+    message_id: string
+    suggested: boolean
+  }>
 }
 
 const MarkdownRenderer = (props: MarkdownRendererProps) => {
   const [htmlContent, setHtmlContent] = createSignal('')
   const [containerRef, setContainerRef] = createSignal<HTMLDivElement | null>(null)
 
+  // Функция для подсветки предложенных артефактов
+  const highlightSuggestedArtifacts = (text: string): string => {
+    if (!props.suggestedArtifacts?.length) return text
+
+    let highlightedText = text
+
+    // Ищем артефакты, связанные с текущим сообщением
+    const messageArtifacts = props.suggestedArtifacts.filter(
+      (artifact) => artifact.message_id === String(props.messageId) && artifact.suggested
+    )
+
+    // Подсвечиваем каждый артефакт
+    for (const artifact of messageArtifacts) {
+      const artifactText = artifact.selected_text
+      const regex = new RegExp(`(${artifactText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+
+      highlightedText = highlightedText.replace(regex, (match) => {
+        return `<span class="suggested-artifact" data-artifact-id="${artifact.id}" title="Предложенный артефакт">${match}</span>`
+      })
+    }
+
+    return highlightedText
+  }
+
   createEffect(() => {
+    // Подсвечиваем предложенные артефакты перед парсингом markdown
+    let contentToRender = highlightSuggestedArtifacts(props.content)
+
     // Удаляем раздел "## Источники" из markdown перед парсингом
     // Это предотвращает дублирование источников (они показываются отдельным блоком)
-    let contentToRender = props.content
     // Удаляем раздел источников в разных вариантах (заголовок + список)
     // Паттерн: заголовок "## Источники" + все до следующего заголовка или конца текста
     contentToRender = contentToRender.replace(
@@ -93,7 +125,7 @@ const MarkdownRenderer = (props: MarkdownRendererProps) => {
   }
 
   // Обработчик двойного клика для быстрого выделения слова/фразы
-  const handleDoubleClick = (e: MouseEvent) => {
+  const handleDoubleClick = (_e: MouseEvent) => {
     // Даем браузеру выделить слово, затем вызываем обработчик
     setTimeout(handleSelection, 10)
   }

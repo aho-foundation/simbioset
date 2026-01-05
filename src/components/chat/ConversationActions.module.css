@@ -90,3 +90,22 @@
   z-index: 1;
   border: 2px solid white;
 }
+
+.suggestedArtifactBadge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #2563eb; /* Более насыщенный синий для предложений */
+  color: white;
+  border-radius: 50%;
+  min-width: 18px;
+  height: 18px;
+  font-size: 10px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  border: 2px solid white;
+  padding: 0 4px;
+}

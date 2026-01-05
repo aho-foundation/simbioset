@@ -1,6 +1,5 @@
 import { Component, createResource, createSignal, For, Show } from 'solid-js'
 import { useSession } from '~/contexts/SessionContext'
-import { useArtifacts, Artifact } from '~/contexts/ArtifactsContext'
 import styles from './ArtifactsPanel.module.css'
 
 interface ArtifactsPanelProps {
@@ -17,7 +16,7 @@ export const ArtifactsPanel: Component<ArtifactsPanelProps> = (props) => {
   const [isCreating, setIsCreating] = createSignal(false)
 
   // Загружаем артефакты из API (если нужно синхронизировать)
-  const [apiArtifacts] = createResource(sessionId, async (sid) => {
+  const [_apiArtifacts] = createResource(sessionId, async (sid) => {
     if (!sid) return []
     try {
       const response = await fetch(`/api/artifacts?session_id=${sid}`)
@@ -44,6 +43,36 @@ export const ArtifactsPanel: Component<ArtifactsPanelProps> = (props) => {
     }
   }
 
+  const handleAcceptSuggestion = async (artifactId: string) => {
+    try {
+      const response = await fetch(`/api/artifacts/suggestions/${artifactId}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId() })
+      })
+      if (response.ok) {
+        artifacts.refetch() // Обновляем список артефактов
+      }
+    } catch (error) {
+      console.error('Failed to accept suggestion:', error)
+    }
+  }
+
+  const handleRejectSuggestion = async (artifactId: string) => {
+    try {
+      const response = await fetch(`/api/artifacts/suggestions/${artifactId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId() })
+      })
+      if (response.ok) {
+        artifacts.refetch() // Обновляем список артефактов
+      }
+    } catch (error) {
+      console.error('Failed to reject suggestion:', error)
+    }
+  }
+
   const handleCreateProject = async () => {
     if (!projectTitle().trim() || !projectDescription().trim()) return
 
@@ -64,14 +93,14 @@ export const ArtifactsPanel: Component<ArtifactsPanelProps> = (props) => {
           session_id: sessionId(),
           title: projectTitle(),
           description: projectDescription(),
-          artifacts: artifactsList.map(a => ({
+          artifacts: artifactsList.map((a) => ({
             id: a.id,
             content: a.content,
             selected_text: a.selectedText,
             type: a.type,
             timestamp: a.timestamp.toISOString()
           })),
-          knowledge_base_id: 'chat-session-' + sessionId(),
+          knowledge_base_id: `chat-session-${sessionId()}`,
           tags: ['chat-artifacts', 'generated']
         })
       })
@@ -104,7 +133,9 @@ export const ArtifactsPanel: Component<ArtifactsPanelProps> = (props) => {
       <div class={styles.panel} onClick={(e) => e.stopPropagation()}>
         <div class={styles.header}>
           <h3>Артефакты беседы ({currentArtifacts().length})</h3>
-          <button class={styles.closeButton} onClick={props.onClose}>×</button>
+          <button class={styles.closeButton} onClick={props.onClose}>
+            ×
+          </button>
         </div>
 
         <div class={styles.content}>
@@ -124,14 +155,43 @@ export const ArtifactsPanel: Component<ArtifactsPanelProps> = (props) => {
                 {(artifact) => (
                   <div class={styles.artifact}>
                     <div class={styles.artifactHeader}>
-                      <span class={styles.artifactType}>{artifact.type}</span>
-                      <button
-                        class={styles.removeButton}
-                        onClick={() => handleRemoveArtifact(artifact.id)}
-                        title="Удалить артефакт"
-                      >
-                        ×
-                      </button>
+                      <span class={styles.artifactType}>
+                        {artifact.suggested && '⭐ '}
+                        {artifact.type}
+                        {artifact.suggested && (
+                          <small style="color: #2563eb; margin-left: 4px;">
+                            ({Math.round(artifact.confidence * 100)}%)
+                          </small>
+                        )}
+                      </span>
+                      {artifact.suggested ? (
+                        <div style="display: flex; gap: 4px;">
+                          <button
+                            class={styles.confirmButton}
+                            onClick={() => handleAcceptSuggestion(artifact.id)}
+                            title="Принять предложение"
+                            style="font-size: 12px; padding: 2px 6px;"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            class={styles.removeButton}
+                            onClick={() => handleRejectSuggestion(artifact.id)}
+                            title="Отклонить предложение"
+                            style="font-size: 12px; padding: 2px 6px;"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          class={styles.removeButton}
+                          onClick={() => handleRemoveArtifact(artifact.id)}
+                          title="Удалить артефакт"
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
                     <div class={styles.artifactContent}>
                       <p>{artifact.content}</p>
@@ -139,6 +199,7 @@ export const ArtifactsPanel: Component<ArtifactsPanelProps> = (props) => {
                     <div class={styles.artifactMeta}>
                       <small>
                         {artifact.timestamp.toLocaleString('ru-RU')}
+                        {artifact.suggested && ' • Предложено автоматически'}
                       </small>
                     </div>
                   </div>
@@ -196,10 +257,7 @@ export const ArtifactsPanel: Component<ArtifactsPanelProps> = (props) => {
               </div>
 
               <div class={styles.dialogActions}>
-                <button
-                  class={styles.cancelButton}
-                  onClick={() => setShowCreateDialog(false)}
-                >
+                <button class={styles.cancelButton} onClick={() => setShowCreateDialog(false)}>
                   Отмена
                 </button>
                 <button

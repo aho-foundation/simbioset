@@ -1,5 +1,4 @@
-import { createContext, createSignal, useContext, createEffect, JSX } from 'solid-js'
-import type { Message } from '~/types/chat'
+import { createContext, createEffect, createSignal, JSX, useContext } from 'solid-js'
 
 export interface Artifact {
   id: string
@@ -8,11 +7,26 @@ export interface Artifact {
   selectedText: string
   timestamp: Date
   type?: 'idea' | 'requirement' | 'note' | 'insight'
+  suggested?: boolean
+}
+
+interface SerializedArtifact {
+  id: string
+  messageId: string | number
+  content: string
+  selectedText: string
+  timestamp: string
+  type?: 'idea' | 'requirement' | 'note' | 'insight'
 }
 
 interface ArtifactsContextValue {
   artifacts: () => Artifact[]
-  addArtifact: (messageId: string | number, selectedText: string, content?: string, type?: Artifact['type']) => void
+  addArtifact: (
+    messageId: string | number,
+    selectedText: string,
+    content?: string,
+    type?: Artifact['type']
+  ) => void
   removeArtifact: (artifactId: string) => void
   clearArtifacts: () => void
   getArtifactsByMessage: (messageId: string | number) => Artifact[]
@@ -42,7 +56,7 @@ export const ArtifactsProvider = (props: ArtifactsProviderProps) => {
       if (saved) {
         const parsed = JSON.parse(saved)
         // Преобразуем timestamp обратно в Date
-        const artifactsWithDates = parsed.map((artifact: any) => ({
+        const artifactsWithDates = parsed.map((artifact: SerializedArtifact) => ({
           ...artifact,
           timestamp: new Date(artifact.timestamp)
         }))
@@ -77,11 +91,11 @@ export const ArtifactsProvider = (props: ArtifactsProviderProps) => {
       type
     }
 
-    setArtifacts(prev => [...prev, newArtifact])
+    setArtifacts((prev) => [...prev, newArtifact])
   }
 
   const removeArtifact = (artifactId: string) => {
-    setArtifacts(prev => prev.filter(artifact => artifact.id !== artifactId))
+    setArtifacts((prev) => prev.filter((artifact) => artifact.id !== artifactId))
   }
 
   const clearArtifacts = () => {
@@ -89,7 +103,7 @@ export const ArtifactsProvider = (props: ArtifactsProviderProps) => {
   }
 
   const getArtifactsByMessage = (messageId: string | number) => {
-    return artifacts().filter(artifact => artifact.messageId === messageId)
+    return artifacts().filter((artifact) => artifact.messageId === messageId)
   }
 
   const value: ArtifactsContextValue = {
@@ -100,9 +114,5 @@ export const ArtifactsProvider = (props: ArtifactsProviderProps) => {
     getArtifactsByMessage
   }
 
-  return (
-    <ArtifactsContext.Provider value={value}>
-      {props.children}
-    </ArtifactsContext.Provider>
-  )
+  return <ArtifactsContext.Provider value={value}>{props.children}</ArtifactsContext.Provider>
 }

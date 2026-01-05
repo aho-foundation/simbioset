@@ -1,7 +1,14 @@
 import { Component, Show } from 'solid-js'
 import styles from '~/styles/interview.module.css'
 import type { MessageSource } from '~/types/chat'
-import { ArtifactIcon, BookSearchIcon, CopyIcon, EditIcon, FactCheckIcon, WebSearchIcon } from './MessageIcons'
+import {
+  ArtifactIcon,
+  BookSearchIcon,
+  CopyIcon,
+  EditIcon,
+  FactCheckIcon,
+  WebSearchIcon
+} from './MessageIcons'
 import { SourcesList } from './SourcesList'
 
 interface MessageActionsProps {

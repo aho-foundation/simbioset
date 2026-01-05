@@ -8,6 +8,8 @@
 import asyncio
 import sys
 
+import pytest
+
 # Импорты из проекта
 sys.path.append("/Users/tony/code/simbioset-website")
 
@@ -17,6 +19,7 @@ from api.logger import root_logger
 log = root_logger.debug
 
 
+@pytest.mark.asyncio
 async def test_ecosystem_context_formatting():
     """Тестирует форматирование контекста экосистемы."""
 
@@ -68,6 +71,7 @@ async def test_ecosystem_context_formatting():
     log("✅ Форматирование экосистем прошло проверку")
 
 
+@pytest.mark.asyncio
 async def test_unified_ecosystem_context_formatting():
     """Тестирует объединённое форматирование контекста экосистемы с симбионтами."""
 
@@ -147,6 +151,7 @@ async def test_unified_ecosystem_context_formatting():
     log("✅ Объединённое форматирование экосистемы + симбионтов прошло проверку")
 
 
+@pytest.mark.asyncio
 async def test_empty_contexts():
     """Тестирует обработку пустых контекстов."""
 
@@ -154,7 +159,11 @@ async def test_empty_contexts():
 
     # Пустой контекст экосистемы
     empty_ecosystem = format_ecosystem_context([], None, None)
-    assert "No ecosystem data available" in empty_ecosystem
+    # Теперь функция всегда возвращает базовые секции, даже для пустых данных
+    assert "=== GEOSPATIAL CONTEXT ===" in empty_ecosystem
+    assert "📍 Location: Not specified" in empty_ecosystem
+    assert "=== WEATHER METRICS ===" in empty_ecosystem
+    assert "🌤️ Weather: Not available" in empty_ecosystem
     log("✅ Пустой контекст экосистем обработан")
 
     # Пустой контекст симбионтов (через мок)
@@ -178,22 +187,4 @@ async def test_empty_contexts():
         SymbiontService.search_symbionts = original_method
 
 
-async def main():
-    """Главная функция тестирования."""
-
-    log("🚀 Запуск тестирования Weaviate-style форматирования...")
-
-    try:
-        await test_ecosystem_context_formatting()
-        await test_unified_ecosystem_context_formatting()
-        await test_empty_contexts()
-
-        log("🎉 Все тесты форматирования пройдены успешно!")
-
-    except Exception as e:
-        log(f"❌ Ошибка при тестировании: {e}")
-        raise
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# Тесты будут автоматически обнаружены pytest

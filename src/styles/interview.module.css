@@ -318,12 +318,17 @@
 .chatMessages {
   flex: 1;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #f8fafc;
+}
+
+.messagesContainer {
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  min-height: 0;
-  background: #f8fafc;
 }
 
 .emptyState {
@@ -1614,8 +1619,29 @@
   text-overflow: ellipsis;
 }
 
+/* Стили для ссылок в источниках */
+.sourcesInline a.sourceInlineItem {
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
+.sourcesInline a.sourceInlineItem:visited,
+.sourcesInline a.sourceInlineItem:link,
+.sourcesInline a.sourceInlineItem:active {
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
 .sourceInlineItem:hover {
   background: rgba(59, 130, 246, 0.12);
+}
+
+/* Специфичные стили для ссылок в источниках */
+.sourcesInline a.sourceInlineItem:hover {
+  background: rgba(59, 130, 246, 0.12) !important;
+  text-decoration: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 .sourceIcon {

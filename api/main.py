@@ -35,47 +35,25 @@ from api.storage.paragraph_service import ParagraphService
 from api.classify.tag_service import TagService
 from api.storage.nodes_repository import DatabaseNodeRepository
 from api.kb.service import KBService
-from api.settings import MODELS_CACHE_DIR, DATABASE_URL, DATABASE_PATH, WEAVIATE_GRPC_URL, WEAVIATE_URL
+from api.settings import MODELS_CACHE_DIR, DATABASE_URL, DATABASE_PATH, WEAVIATE_URL
 from api.logger import root_logger
 import asyncio
-
-try:
-    import httpx
-
-    HAS_HTTPX = True
-except ImportError:
-    import requests  # type: ignore[import-untyped]
-
-    HAS_HTTPX = False
 
 log = root_logger.debug
 
 
 async def check_weaviate_availability(url: str) -> tuple[bool, str]:
     """Проверяет доступность Weaviate через HTTP API"""
+    log(f"🔍 Проверка доступности Weaviate: {url}")
     try:
-        log(f"🔍 Проверка доступности Weaviate: {url}")
+        import requests  # type: ignore[import-untyped]
 
-        if HAS_HTTPX:
-            # Используем httpx для native async
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(f"{url}/v1/meta")
-        else:
-            # Fallback на requests с executor
-            import requests  # type: ignore[import-untyped]
-
-            response = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: requests.get(f"{url}/v1/meta", timeout=5)
-            )
+        response = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: requests.get(f"{url}/v1/meta", timeout=5)
+        )
 
         if response.status_code == 200:
-            if hasattr(response, "json"):
-                # httpx response
-                data = response.json()
-            else:
-                # requests response
-                data = response.json()
-
+            data = response.json()
             version = data.get("version", "unknown")
             modules = data.get("modules", {})
             log(f"✅ Weaviate доступен: версия {version}, модули: {list(modules.keys())}")

@@ -146,7 +146,49 @@ def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
                     source_dict["url"] = url
                 sources.append(source_dict)
 
-    # ФАЛЛБЕК 2: Ищем упоминания типов источников в тексте
+    # ФАЛЛБЕК 2: Ищем упоминания ссылок и доменов в тексте
+    if not sources:
+        # Ищем все URL в тексте
+        url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+        found_urls = re.findall(url_pattern, response_content)
+
+        # Группируем URL по доменам и создаем источники
+        domain_sources = {}
+        for url in found_urls[:5]:  # Ограничиваем до 5 источников
+            try:
+                from urllib.parse import urlparse
+
+                domain = urlparse(url).netloc
+                if domain and domain not in domain_sources:
+                    domain_sources[domain] = url
+            except:
+                continue
+
+        # Создаем источники из найденных доменов
+        for domain, url in domain_sources.items():
+            # Определяем тип по домену
+            if "wikipedia" in domain:
+                source_type = "📚"
+                title = f"Википедия - {domain}"
+            elif "scholar.google" in domain:
+                source_type = "📄"
+                title = "Google Scholar"
+            elif "pubmed" in domain or "nih.gov" in domain:
+                source_type = "🔬"
+                title = "PubMed/NCBI"
+            elif "researchgate" in domain:
+                source_type = "📄"
+                title = "ResearchGate"
+            elif "arxiv" in domain:
+                source_type = "📄"
+                title = "arXiv"
+            else:
+                source_type = "🌐"
+                title = f"Веб-ресурс - {domain}"
+
+            sources.append({"title": title, "type": source_type, "url": url})
+
+    # ФАЛЛБЕК 3: Ищем упоминания типов источников в тексте (если нет URL)
     if not sources:
         # Определяем известные типы источников
         source_type_patterns = {
@@ -173,18 +215,12 @@ def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
             if pattern in content_lower and source_type not in found_types:
                 found_types.append(source_type)
 
-        # Создаем источники на основе найденных типов
-        for i, source_type in enumerate(found_types, 1):
-            title = f"{source_type} по симбиозу"  # Дефолтный заголовок
+        # Создаем источники на основе найденных типов только если есть явные упоминания
+        for source_type in found_types:
+            title = f"{source_type}"
             sources.append({"title": title, "type": source_type})
 
-    # ФАЛЛБЕК 3: Если ничего не найдено, добавляем базовые источники
-    if not sources:
-        # Добавляем базовые источники для симбиоза
-        sources = [
-            {"title": "База знаний по симбиозу", "type": "База знаний"},
-            {"title": "Экспертные знания", "type": "Экспертные знания"},
-        ]
+    # Если ничего не найдено, возвращаем пустой список (не добавляем фейковые источники)
 
     return sources
 

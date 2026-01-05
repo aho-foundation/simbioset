@@ -231,3 +231,36 @@ body {
 .transition-all { transition: all 0.3s ease; }
 .transition-colors { transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease; }
 .transition-transform { transition: transform 0.3s ease; }
+
+/* Suggested Artifacts Highlighting */
+.suggested-artifact {
+  position: relative;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.15));
+  border-bottom: 2px solid #2563eb;
+  border-radius: 2px;
+  padding: 0 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.suggested-artifact:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.25));
+  border-bottom-color: #1d4ed8;
+}
+
+.suggested-artifact::before {
+  content: "⭐";
+  position: absolute;
+  top: -12px;
+  left: -2px;
+  font-size: 10px;
+  color: #2563eb;
+  background: white;
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+}

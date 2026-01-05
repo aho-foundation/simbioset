@@ -1,6 +1,21 @@
 # Changelog
 
 
+## [0.4.20] - 2026-01-05
+
+### Fixed
+- **TypeScript ошибки**: Исправлена ошибка типа `Property 'projects' does not exist on type 'number | ProjectsResponse'` в ProjectsPage.tsx
+- **Тесты локализации**: Заменен обычный dict на объект ChatSessionCreate из Pydantic модели
+- **Тесты форматирования контекста**: Исправлен тест empty_contexts для соответствия новой логике форматирования (GEOSPATIAL и WEATHER секции всегда присутствуют)
+- **Тесты детектора экосистем**: Исправлено мокирование LLM функций, заменено `@patch("api.llm.call_llm")` на `@patch("api.detect.ecosystem_scaler.extract_structured_data")` для всех 8 тестов
+- **Тесты детектора организмов**: Аналогичное исправление мокирования для всех 6 тестов, включая корректную обработку отсутствующих полей scientific_name
+- **Линтер ошибки**: Исправлены множественные ошибки Biome (useTemplate, useParseIntRadix, noUnusedImports, noUnusedVariables) и Mypy (аргументы функций)
+
+### Technical
+- **Мокирование**: Переход с мокирования LLM функций на мокирование extract_structured_data для стабильности асинхронных тестов
+- **Type assertions**: Добавлены type assertions в ProjectsPage.tsx для корректной работы с createResource зависимостями
+
+
 ## [0.4.19] - 2026-01-05
 
 ### Added

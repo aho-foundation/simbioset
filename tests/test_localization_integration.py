@@ -10,16 +10,20 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 # Импорты из проекта
 sys.path.append("/Users/tony/code/simbioset-website")
 
 from api.chat.service import ChatSessionService
+from api.chat.models import ChatSessionCreate
 from api.storage.weaviate_storage import WeaviateStorage
 from api.logger import root_logger
 
 log = root_logger.debug
 
 
+@pytest.mark.asyncio
 async def test_session_localization():
     """Тестирует привязку локализации к сессии."""
 
@@ -27,7 +31,8 @@ async def test_session_localization():
 
     # Создаем тестовую сессию
     session_service = ChatSessionService()
-    test_session = session_service.create_session({"topic": "Тестовая сессия для локализации", "conceptTreeId": None})
+    session_data = ChatSessionCreate(topic="Тестовая сессия для локализации", conceptTreeId=None)
+    test_session = session_service.create_session(session_data)
 
     log(f"✅ Создана тестовая сессия: {test_session.id}")
 
@@ -65,6 +70,7 @@ async def test_session_localization():
     log("🎉 Все тесты локализации сессий пройдены!")
 
 
+@pytest.mark.asyncio
 async def test_symbiont_search():
     """Тестирует поиск симбионтов."""
 
@@ -112,24 +118,4 @@ async def test_symbiont_search():
         log(f"⚠️ Тест поиска симбионтов пропущен (Weaviate недоступен): {e}")
 
 
-async def main():
-    """Главная функция тестирования."""
-
-    log("🚀 Запуск тестирования локализации экосистем...")
-
-    try:
-        # Тестируем локализацию сессий
-        await test_session_localization()
-
-        # Тестируем поиск симбионтов (если Weaviate доступен)
-        await test_symbiont_search()
-
-        log("🎉 Все тесты пройдены успешно!")
-
-    except Exception as e:
-        log(f"❌ Ошибка при тестировании: {e}")
-        raise
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# Тесты будут автоматически обнаружены pytest

@@ -38,8 +38,7 @@ class TestEcosystemContextFormatting:
         assert "🌡️ Температура: +20°C" in result
         assert "🌿 Entity_1: Тестовая экосистема" in result
         assert "📊 Status: active | Type: ecological" in result
-        assert "├── Scale: habitat | Type: ecosystem" in result
-        assert "├── Status: active | Confidence: 0.80" in result
+        assert "🏷️ Scale: habitat | Confidence: 80.0%" in result
 
     def test_format_ecosystem_context_full(self):
         """Тест форматирования полного контекста экосистемы."""
@@ -74,17 +73,15 @@ class TestEcosystemContextFormatting:
         assert "=== ECOSYSTEM ENTITIES ===" in result
         assert "📍 Location: Москва, Россия" in result
         assert "🌡️ Температура: +15°C" in result
-        assert "🌡️ Влажность: 65%" in result
+        assert "💧 Влажность: 65%" in result
         assert "🌿 Entity_1: Смешанный лес" in result
         assert "🌿 Entity_2: Микробиом кишечника" in result
         assert "📊 Status: active | Type: ecological" in result
-        assert "├── Scale: habitat | Type: ecosystem" in result
-        assert "├── Status: active | Confidence: 0.85" in result
-        assert "├── Scale: organ | Type: ecosystem" in result
-        assert "├── Status: active | Confidence: 0.92" in result
-        assert "biome=temperate_forest" in result
-        assert "biome=human_microbiome" in result
-        assert "threat_level=medium" in result
+        assert "🏷️ Scale: habitat | Confidence: 85.0%" in result
+        assert "🏷️ Scale: organ | Confidence: 92.0%" in result
+        assert "🌲 Biome: temperate_forest" in result
+        assert "🌲 Biome: human_microbiome" in result
+        assert "⚠️ Threat Level: medium" in result
 
     def test_format_ecosystem_context_with_symbionts(self):
         """Тест форматирования контекста с симбионтами."""
@@ -141,12 +138,12 @@ class TestEcosystemContextFormatting:
         assert "=== MICROBIAL ENTITIES ===" in result
         assert "🦠 Entity_1: Бифидобактерии" in result
         assert "🦠 Entity_2: Золотистый стафилококк" in result
-        assert "   ├── Type: symbiont | Category: бактерия" in result
-        assert "   ├── Type: pathogen | Category: бактерия" in result
-        assert "   ├── Biochemical Role: ферментация углеводов" in result
-        assert "   ├── Biochemical Role: выработка токсинов" in result
-        assert "prevalence=0.85, distribution=всемирно" in result
-        assert "prevalence=0.25, virulence_factors=1, distribution=всемирно" in result
+        assert "🏷️ Category: бактерия | Risk: low" in result
+        assert "🔬 Role: ферментация углеводов" in result
+        assert "🔬 Role: выработка токсинов" in result
+        assert "📈 Prevalence: 85.0% | Confidence: 95.0%" in result
+        assert "📈 Prevalence: 25.0% | Confidence: 88.0%" in result
+        assert "🗺️ Distribution: всемирно" in result
 
     def test_format_ecosystem_context_empty_ecosystems(self):
         """Тест форматирования с пустым списком экосистем."""
@@ -166,7 +163,7 @@ class TestEcosystemContextFormatting:
 
         # Assert
         assert "=== MICROBIAL ENTITIES ===" not in result
-        assert "No microbial data available" in result
+        # When symbionts is empty, no microbial section is added at all
 
     def test_format_ecosystem_context_none_location_weather(self):
         """Тест форматирования с None значениями location и weather."""
@@ -211,19 +208,21 @@ class TestEcosystemContextFormatting:
         # Arrange
         ecosystems = [{"name": "Тест", "scale": "habitat", "description": "Тест", "confidence": 0.8}]
 
-        # Мокаем симбионта с минимальными полями
-        mock_symbiont = Mock(
-            name="Минимальный симбионт",
-            scientific_name=None,
-            type="symbiont",
-            category=None,
-            biochemical_role=None,
-            risk_level="low",
-            detection_confidence=0.5,
-            prevalence=0.0,
-            virulence_factors=[],
-            geographic_distribution=None,
-        )
+        # Создаем объект симбионта с минимальными полями
+        class SimpleSymbiont:
+            def __init__(self):
+                self.name = "Минимальный симбионт"
+                self.scientific_name = None
+                self.type = "symbiont"
+                self.category = None
+                self.biochemical_role = None
+                self.risk_level = "low"
+                self.detection_confidence = 0.5
+                self.prevalence = 0.0
+                self.virulence_factors = []
+                self.geographic_distribution = None
+
+        mock_symbiont = SimpleSymbiont()
 
         # Act
         result = format_ecosystem_context(ecosystems, "Тест", "Тест", [mock_symbiont])

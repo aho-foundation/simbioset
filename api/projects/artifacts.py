@@ -21,6 +21,8 @@ class Artifact:
         content: str,
         timestamp: datetime,
         artifact_type: str = "note",
+        suggested: bool = False,
+        confidence: float = 0.0,
     ):
         self.id = artifact_id
         self.message_id = message_id
@@ -28,6 +30,8 @@ class Artifact:
         self.content = content
         self.timestamp = timestamp
         self.type = artifact_type
+        self.suggested = suggested  # True для автоматически предложенных артефактов
+        self.confidence = confidence  # Уверенность модели (0.0-1.0)
 
     def to_dict(self) -> Dict[str, Any]:
         """Сериализует артефакт в словарь."""
@@ -38,6 +42,8 @@ class Artifact:
             "content": self.content,
             "timestamp": self.timestamp.isoformat(),
             "type": self.type,
+            "suggested": self.suggested,
+            "confidence": self.confidence,
         }
 
     @classmethod
@@ -50,6 +56,8 @@ class Artifact:
             content=data["content"],
             timestamp=datetime.fromisoformat(data["timestamp"]),
             artifact_type=data.get("type", "note"),
+            suggested=data.get("suggested", False),
+            confidence=data.get("confidence", 0.0),
         )
 
 
@@ -182,6 +190,133 @@ class ArtifactsManager:
         """
         all_artifacts = await self.get_artifacts(session_id)
         return [artifact for artifact in all_artifacts if artifact.type == artifact_type]
+
+    async def get_suggested_artifacts(self, session_id: str) -> List[Artifact]:
+        """
+        Получает только предложенные (автоматические) артефакты.
+
+        Args:
+            session_id: ID сессии
+
+        Returns:
+            Список предложенных артефактов
+        """
+        all_artifacts = await self.get_artifacts(session_id)
+        return [artifact for artifact in all_artifacts if artifact.suggested]
+
+    async def get_unreviewed_suggestions(self, session_id: str) -> List[Artifact]:
+        """
+        Получает нерассмотренные предложенные артефакты.
+        Пока что возвращает все предложенные (позже можно добавить статус review).
+
+        Args:
+            session_id: ID сессии
+
+        Returns:
+            Список нерассмотренных предложенных артефактов
+        """
+        return await self.get_suggested_artifacts(session_id)
+
+    async def accept_suggestion(self, session_id: str, artifact_id: str) -> bool:
+        """
+        Принимает предложенный артефакт (делает его обычным артефактом).
+
+        Args:
+            session_id: ID сессии
+            artifact_id: ID артефакта
+
+        Returns:
+            True если успешно принято
+        """
+        session_data = await self._session_manager.get_session(session_id)
+        if not session_data:
+            return False
+
+        artifacts_data = session_data.get("artifacts", [])
+        for artifact_data in artifacts_data:
+            if artifact_data["id"] == artifact_id and artifact_data.get("suggested", False):
+                artifact_data["suggested"] = False
+                session_data["artifacts"] = artifacts_data
+                await self._session_manager.update_session(session_id, session_data)
+                log(f"Accepted suggested artifact {artifact_id} in session {session_id}")
+                return True
+        return False
+
+    async def reject_suggestion(self, session_id: str, artifact_id: str) -> bool:
+        """
+        Отклоняет предложенный артефакт (удаляет его).
+
+        Args:
+            session_id: ID сессии
+            artifact_id: ID артефакта
+
+        Returns:
+            True если успешно отклонено
+        """
+        session_data = await self._session_manager.get_session(session_id)
+        if not session_data:
+            return False
+
+        artifacts_data = session_data.get("artifacts", [])
+        filtered_artifacts_data = [
+            artifact_data
+            for artifact_data in artifacts_data
+            if not (artifact_data["id"] == artifact_id and artifact_data.get("suggested", False))
+        ]
+
+        if len(filtered_artifacts_data) < len(artifacts_data):
+            session_data["artifacts"] = filtered_artifacts_data
+            await self._session_manager.update_session(session_id, session_data)
+            log(f"Rejected suggested artifact {artifact_id} in session {session_id}")
+            return True
+        return False
+
+    async def suggest_artifacts_from_messages(self, session_id: str, messages: List[Dict[str, Any]]) -> int:
+        """
+        Автоматически предлагает артефакты на основе анализа сообщений.
+
+        Args:
+            session_id: ID сессии
+            messages: Список сообщений для анализа
+
+        Returns:
+            Количество предложенных артефактов
+        """
+        from .artifacts_service import suggest_artifacts_from_messages
+
+        # Получаем существующие артефакты
+        existing_artifacts = await self.get_artifacts(session_id)
+        existing_texts = {a.selected_text for a in existing_artifacts}
+
+        # Предлагаем новые артефакты
+        suggested_artifacts_data = await suggest_artifacts_from_messages(session_id, messages)
+
+        new_suggestions = 0
+        for artifact_data in suggested_artifacts_data:
+            # Проверяем, что такой артефакт еще не существует
+            if artifact_data["selected_text"] not in existing_texts:
+                artifact = Artifact(
+                    artifact_id=f"suggested_{session_id}_{len(existing_artifacts) + new_suggestions}",
+                    message_id=artifact_data["message_id"],
+                    selected_text=artifact_data["selected_text"],
+                    content=artifact_data["content"],
+                    timestamp=datetime.now(),
+                    artifact_type=artifact_data["type"],
+                    suggested=True,
+                    confidence=artifact_data["confidence"],
+                )
+
+                existing_artifacts.append(artifact)
+                new_suggestions += 1
+
+        if new_suggestions > 0:
+            session_data = await self._session_manager.get_session(session_id)
+            if session_data:
+                session_data["artifacts"] = [artifact.to_dict() for artifact in existing_artifacts]
+                await self._session_manager.update_session(session_id, session_data)
+                log(f"Suggested {new_suggestions} new artifacts for session {session_id}")
+
+        return new_suggestions
 
 
 # Глобальный экземпляр менеджера артефактов

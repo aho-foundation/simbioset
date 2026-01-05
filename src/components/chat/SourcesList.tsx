@@ -44,7 +44,7 @@ export const SourcesList = (props: SourcesListProps) => {
                   rel="noopener noreferrer"
                   class={styles.sourceInlineItem}
                   title={`${source.title} (${source.type}) - кликните для перехода`}
-                  style="cursor: pointer; text-decoration: none;"
+                  style="cursor: pointer; text-decoration: none; display: inline-flex;"
                 >
                   <span class={styles.sourceIcon}>
                     <Icon />
