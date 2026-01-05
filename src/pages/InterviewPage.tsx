@@ -93,8 +93,16 @@ const InterviewPage = () => {
   const [detectorLoading, setDetectorLoading] = createSignal(false)
   const [detectorErrors, setDetectorErrors] = createSignal<Record<string, boolean>>({})
   const [summaryLoading, setSummaryLoading] = createSignal(false)
+  const [factCheckResult, setFactCheckResult] = createSignal<{
+    status: 'true' | 'false' | null
+    confidence?: number
+  } | null>(null)
+  const [webSearchError, setWebSearchError] = createSignal<boolean>(false)
+  const [locationError, setLocationError] = createSignal<boolean>(false)
+  const [bookSearchError, setBookSearchError] = createSignal<boolean>(false)
   const [isLoadingMoreStarters, setIsLoadingMoreStarters] = createSignal(false)
   const [inputHeight, setInputHeight] = createSignal(48)
+  const [chatMainPaddingBottom, setChatMainPaddingBottom] = createSignal('8rem')
   const [isResizing, setIsResizing] = createSignal(false)
   const [isPanelOpen, setIsPanelOpen] = createSignal(false)
   const [treeRefreshKey, setTreeRefreshKey] = createSignal(0)
@@ -253,6 +261,15 @@ const InterviewPage = () => {
   // conversationTree автоматически обновится при изменении chatHistory()
   // благодаря реактивности SolidJS - не нужно дополнительных эффектов
 
+  // Обновляем padding-bottom .chatMain при изменении высоты поля ввода
+  createEffect(() => {
+    const height = inputHeight()
+    // Только высота видимой части поля ввода: conversationActionsBar (видимая часть) + textarea + padding
+    const visibleHeight = 20 + height + 12 // Минимальный отступ
+    const paddingValue = `${visibleHeight}px`
+    setChatMainPaddingBottom(paddingValue)
+  })
+
   const canRunDetectors = () => {
     const all = messages()
     const hasUser = all.some((m) => m.role === 'user')
@@ -358,6 +375,12 @@ const InterviewPage = () => {
   const sendMessage = async () => {
     const text = inputValue().trim()
     if (!text || isLoading()) return
+
+    // Сбрасываем результаты предыдущих проверок
+    setFactCheckResult(null)
+    setWebSearchError(false)
+    setLocationError(false)
+    setBookSearchError(false)
 
     // Add user message
     const userMessage: Message = { id: Date.now(), role: 'user', content: text }
@@ -653,43 +676,18 @@ const InterviewPage = () => {
         body: JSON.stringify({ text })
       })
 
-      if (!res.ok) {
-        const errorMessage: Message = {
-          id: Date.now(),
-          role: 'assistant',
-          content: `❌ Ошибка фактчекинга: ${res.status} ${res.statusText}`
-        }
-        setMessages((prev) => [...prev, errorMessage])
-        return
+      if (res.ok) {
+        const data = await res.json()
+        const confidence = data.details?.confidence
+        setFactCheckResult({
+          status: data.status === 'true' ? 'true' : data.status === 'false' ? 'false' : null,
+          confidence: confidence
+        })
+      } else {
+        setFactCheckResult(null)
       }
-
-      const data = await res.json()
-      const statusMap: Record<string, string> = {
-        true: '✅ Верно',
-        false: '❌ Ложно',
-        partial: '⚠️ Частично верно',
-        unverifiable: '❓ Нельзя проверить',
-        unknown: '❓ Неизвестно'
-      }
-      const status = statusMap[data.status] || data.status
-      const confidence = data.details?.confidence
-        ? ` (уверенность: ${(data.details.confidence * 100).toFixed(0)}%)`
-        : ''
-
-      const factCheckMessage: Message = {
-        id: Date.now(),
-        role: 'assistant',
-        content: `🔍 **Результат фактчекинга:** ${status}${confidence}\n\n**Детали:**\n\`\`\`json\n${JSON.stringify(data.details, null, 2)}\n\`\`\``,
-        sources: [{ title: 'Фактчекер', type: 'fact_check' }]
-      }
-      setMessages((prev) => [...prev, factCheckMessage])
-    } catch (e) {
-      const errorMessage: Message = {
-        id: Date.now(),
-        role: 'assistant',
-        content: `❌ Ошибка фактчекинга: ${(e as Error).message}`
-      }
-      setMessages((prev) => [...prev, errorMessage])
+    } catch (_e) {
+      setFactCheckResult(null)
     } finally {
       setDetectorLoading(false)
     }
@@ -724,15 +722,8 @@ const InterviewPage = () => {
     const searchQuery = currentMessage?.content || 'симбиоз экосистемы'
 
     setDetectorLoading(true)
+    setWebSearchError(false) // Сбрасываем ошибку перед началом
     try {
-      // Добавляем сообщение о начале поиска
-      const searchMessage: Message = {
-        id: Date.now(),
-        role: 'assistant',
-        content: `🔍 Выполняю поиск в интернете по теме: "${searchQuery}"...`
-      }
-      setMessages((prev) => [...prev, searchMessage])
-
       const res = await fetch('/api/chat/search/web', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -740,30 +731,21 @@ const InterviewPage = () => {
       })
 
       if (!res.ok) {
-        const errorMessage: Message = {
-          id: Date.now() + 1,
-          role: 'assistant',
-          content: `❌ Ошибка поиска в интернете: ${res.status} ${res.statusText}`
-        }
-        setMessages((prev) => [...prev, errorMessage])
+        setWebSearchError(true)
         return
       }
 
       const data = await res.json()
+      // Добавляем сообщение с результатами поиска
       const resultsMessage: Message = {
-        id: Date.now() + 2,
+        id: Date.now(),
         role: 'assistant',
         content: `🌐 **Результаты поиска в интернете:**\n\n${data.results || data}`,
         sources: [{ title: 'Поиск в интернете', type: 'web_search' }]
       }
       setMessages((prev) => [...prev, resultsMessage])
-    } catch (e) {
-      const errorMessage: Message = {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: `❌ Ошибка запроса поиска в интернете: ${(e as Error).message}`
-      }
-      setMessages((prev) => [...prev, errorMessage])
+    } catch (_e) {
+      setWebSearchError(true)
     } finally {
       setDetectorLoading(false)
     }
@@ -778,14 +760,6 @@ const InterviewPage = () => {
 
     setDetectorLoading(true)
     try {
-      // Добавляем сообщение о начале поиска
-      const searchMessage: Message = {
-        id: Date.now(),
-        role: 'assistant',
-        content: `📚 Выполняю поиск книг по теме: "${searchQuery}"...`
-      }
-      setMessages((prev) => [...prev, searchMessage])
-
       const res = await fetch('/api/chat/search/books', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -793,30 +767,24 @@ const InterviewPage = () => {
       })
 
       if (!res.ok) {
-        const errorMessage: Message = {
-          id: Date.now() + 1,
-          role: 'assistant',
-          content: `❌ Ошибка поиска книг: ${res.status} ${res.statusText}`
-        }
-        setMessages((prev) => [...prev, errorMessage])
+        setBookSearchError(true)
         return
       }
 
       const data = await res.json()
+
+      // Сбрасываем ошибку при успешном поиске
+      setBookSearchError(false)
+
       const resultsMessage: Message = {
-        id: Date.now() + 2,
+        id: Date.now() + 1,
         role: 'assistant',
         content: `📖 **Результаты поиска книг:**\n\n${data.results || data}`,
         sources: [{ title: 'Поиск книг', type: 'book_search' }]
       }
       setMessages((prev) => [...prev, resultsMessage])
-    } catch (e) {
-      const errorMessage: Message = {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: `❌ Ошибка запроса поиска книг: ${(e as Error).message}`
-      }
-      setMessages((prev) => [...prev, errorMessage])
+    } catch (_e) {
+      setBookSearchError(true)
     } finally {
       setDetectorLoading(false)
     }
@@ -930,12 +898,7 @@ const InterviewPage = () => {
     try {
       // Получаем геолокацию пользователя
       if (!navigator.geolocation) {
-        const errorMessage: Message = {
-          id: Date.now(),
-          role: 'assistant',
-          content: '❌ Геолокация не поддерживается браузером'
-        }
-        setMessages((prev) => [...prev, errorMessage])
+        setLocationError(true)
         return
       }
 
@@ -949,28 +912,13 @@ const InterviewPage = () => {
 
       const { latitude, longitude } = position.coords
 
+      // Сбрасываем ошибку при успешном получении
+      setLocationError(false)
+
       // Показываем диалог выбора действия с локацией
       showLocationDialog(latitude, longitude)
-    } catch (e) {
-      const error = e as GeolocationPositionError
-      let errorMessage = 'Ошибка получения локации'
-      switch (error.code) {
-        case error.PERMISSION_DENIED:
-          errorMessage = 'Доступ к геолокации запрещен'
-          break
-        case error.POSITION_UNAVAILABLE:
-          errorMessage = 'Информация о локации недоступна'
-          break
-        case error.TIMEOUT:
-          errorMessage = 'Превышено время ожидания локации'
-          break
-      }
-      const errorMsg: Message = {
-        id: Date.now(),
-        role: 'assistant',
-        content: `❌ ${errorMessage}`
-      }
-      setMessages((prev) => [...prev, errorMsg])
+    } catch (_e) {
+      setLocationError(true)
     } finally {
       setDetectorLoading(false)
     }
@@ -1132,7 +1080,7 @@ const InterviewPage = () => {
 
   return (
     <div class={styles.interviewContainer}>
-      <div class={styles.chatMain}>
+      <div class={styles.chatMain} style={{ 'padding-bottom': chatMainPaddingBottom() }}>
         <div class={styles.chatMessages}>
           <For each={messages()}>
             {(message) => (
@@ -1224,41 +1172,85 @@ const InterviewPage = () => {
               </div>
             </div>
           </Show>
-
-          {/* Кнопки копирования и шеринга для всего диалога */}
-          <Show when={messages().length > 0}>
-            <ConversationActions
-              onCopy={copyFullConversation}
-              onShare={() => {
-                const currentSessionId = sessionId()
-                if (currentSessionId) {
-                  const shareUrl = `${window.location.origin}/chat/${currentSessionId}`
-                  if (navigator.share) {
-                    void navigator.share({
-                      title: 'Диалог',
-                      text: 'Посмотрите этот диалог',
-                      url: shareUrl
-                    })
-                  } else {
-                    // Копируем ссылку в буфер обмена
-                    void navigator.clipboard.writeText(shareUrl).then(() => {
-                      alert('Ссылка скопирована в буфер обмена!')
-                    })
-                  }
-                } else {
-                  alert('Невозможно создать ссылку: нет активной сессии')
-                }
-              }}
-              onSendLocation={sendLocation}
-              onWebSearch={performWebSearch}
-              onBookSearch={performBookSearch}
-              currentLocation={currentLocation()}
-            />
-          </Show>
         </div>
 
         <div class={styles.chatInputArea} ref={inputAreaRef}>
           <div class={styles.resizeHandle} onMouseDown={handleResizeStart} />
+          <Show when={messages().length > 0}>
+            <div class={styles.conversationActionsBar}>
+              <ConversationActions
+                onCopy={copyFullConversation}
+                onShare={() => {
+                  const currentSessionId = sessionId()
+                  if (currentSessionId) {
+                    const shareUrl = `${window.location.origin}/chat/${currentSessionId}`
+                    if (navigator.share) {
+                      void navigator.share({
+                        title: 'Диалог',
+                        text: 'Посмотрите этот диалог',
+                        url: shareUrl
+                      })
+                    } else {
+                      // Копируем ссылку в буфер обмена
+                      void navigator.clipboard.writeText(shareUrl).then(() => {
+                        alert('Ссылка скопирована в буфер обмена!')
+                      })
+                    }
+                  } else {
+                    alert('Невозможно создать ссылку: нет активной сессии')
+                  }
+                }}
+                onFactCheck={() => {
+                  const lastMessage = messages().length > 0 ? messages()[messages().length - 1] : null
+                  if (lastMessage && lastMessage.role === 'user') {
+                    void runFactCheck(lastMessage.content)
+                  }
+                }}
+                onSendLocation={sendLocation}
+                onWebSearch={performWebSearch}
+                onBookSearch={performBookSearch}
+                currentLocation={currentLocation()}
+                factCheckResult={factCheckResult()}
+                hasWebSearchError={webSearchError()}
+                hasLocationError={locationError()}
+                hasBookSearchError={bookSearchError()}
+              />
+              <button
+                onClick={() => {
+                  const newState = !isPanelOpen()
+                  setIsPanelOpen(newState)
+                  // Automatically generate summary when opening the panel
+                  if (newState && canShowAnalyticsPanel() && !summaryLoading()) {
+                    void generateSummary()
+                  }
+                }}
+                disabled={!canShowAnalyticsPanel()}
+                class={styles.menuBtn}
+                title={
+                  !canShowAnalyticsPanel()
+                    ? 'Нужно минимум 2 сообщения для аналитики'
+                    : isPanelOpen()
+                      ? 'Закрыть аналитическую панель'
+                      : 'Открыть аналитическую панель'
+                }
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+              </button>
+            </div>
+          </Show>
           <textarea
             ref={textareaRef}
             placeholder="Введите ваше сообщение..."
@@ -1285,40 +1277,6 @@ const InterviewPage = () => {
             rows={2}
           />
           <div class={styles.actionsGroup}>
-            <button
-              onClick={() => {
-                const newState = !isPanelOpen()
-                setIsPanelOpen(newState)
-                // Automatically generate summary when opening the panel
-                if (newState && canShowAnalyticsPanel() && !summaryLoading()) {
-                  void generateSummary()
-                }
-              }}
-              disabled={!canShowAnalyticsPanel()}
-              class={styles.menuBtn}
-              title={
-                !canShowAnalyticsPanel()
-                  ? 'Нужно минимум 2 сообщения для аналитики'
-                  : isPanelOpen()
-                    ? 'Закрыть аналитическую панель'
-                    : 'Открыть аналитическую панель'
-              }
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </button>
             <button
               onClick={sendMessage}
               disabled={isLoading() || !inputValue().trim()}

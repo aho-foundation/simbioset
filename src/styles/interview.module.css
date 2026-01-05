@@ -16,7 +16,8 @@
   flex-direction: column;
   flex: 1;
   min-width: 0;
-  padding-bottom: 6rem; /* Space for fixed input area */
+  /* padding-bottom устанавливается динамически в InterviewPage.tsx */
+  background: #f8fafc;
 }
 
 .interviewHeader {
@@ -421,34 +422,30 @@
 
 .copyAllButtonContainer {
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 0.5rem 1.5rem 0.25rem;
-  margin-bottom: 0.5rem;
-  position: sticky;
-  top: 0;
-  background: #f8fafc;
-  z-index: 5;
+  flex-direction: row;
+  gap: 0.0625rem;
+  align-items: center;
 }
 
 .copyButton {
-  background: rgba(0, 0, 0, 0.05);
   border: none;
-  border-radius: 6px;
-  padding: 0.5rem;
+  background: transparent;
+  color: #64748b;
+  padding: 0.25rem;
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #64748b;
+  border-radius: 6px;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .copyButton:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.1);
-  color: #1e293b;
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
 }
 
 .copyButton:disabled {
@@ -1141,6 +1138,20 @@
   color: white;
 }
 
+.conversationActionsBar {
+  position: absolute;
+  top: -50px; /* Над полем ввода внутри chatInputArea */
+  left: 0;
+  right: 0;
+  z-index: 2;
+  background: transparent;
+  padding: 0.25rem 0.75rem 0.25rem;
+  display: flex;
+  justify-content: flex-end; /* Прижимаем к правому краю */
+  gap: 0.0625rem;
+  align-items: center;
+}
+
 .chatInputArea {
   position: fixed;
   bottom: 0;
@@ -1151,8 +1162,8 @@
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
   display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: stretch;
   padding: 0.75rem;
   box-sizing: border-box;
 }
@@ -1260,39 +1271,30 @@
 
 .actionsGroup {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
+  align-items: flex-start;
+  justify-content: flex-end;
   flex-shrink: 0;
-  align-self: flex-start;
-  padding-top: 0;
 }
 
 .menuBtn {
   border: none;
-  background: #f3f4f6;
+  background: transparent;
   color: #64748b;
-  padding: 0.5rem;
-  width: 40px;
-  height: 40px;
+  padding: 0.25rem;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 6px;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
 .menuBtn:hover {
-  background: #e5e7eb;
+  background: rgba(59, 130, 246, 0.1);
   color: #3b82f6;
-  transform: translateY(-1px);
-}
-
-.menuBtn:active {
-  transform: translateY(0);
-  background: #d1d5db;
 }
 
 .menuBtn:disabled {

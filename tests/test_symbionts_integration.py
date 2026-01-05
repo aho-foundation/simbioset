@@ -139,11 +139,12 @@ class TestSymbiontsIntegration:
         )
 
         # Мокаем все методы сервиса
-        with patch.object(symbiont_service, 'create_symbiont', return_value="integration-test-123") as mock_create, \
-             patch.object(symbiont_service, 'get_symbiont', side_effect=[test_symbiont, updated_symbiont]) as mock_get, \
-             patch.object(symbiont_service, 'update_symbiont', return_value=True) as mock_update, \
-             patch.object(symbiont_service, 'delete_symbiont', return_value=True) as mock_delete:
-
+        with (
+            patch.object(symbiont_service, "create_symbiont", return_value="integration-test-123") as mock_create,
+            patch.object(symbiont_service, "get_symbiont", side_effect=[test_symbiont, updated_symbiont]) as mock_get,
+            patch.object(symbiont_service, "update_symbiont", return_value=True) as mock_update,
+            patch.object(symbiont_service, "delete_symbiont", return_value=True) as mock_delete,
+        ):
             # Act - Создание
             created_id = await symbiont_service.create_symbiont(test_symbiont)
             assert created_id == "integration-test-123"
@@ -295,7 +296,7 @@ class TestSymbiontsIntegration:
         ]
 
         # Мокаем создание симбионтов
-        with patch.object(symbiont_service, 'create_symbiont') as mock_create:
+        with patch.object(symbiont_service, "create_symbiont") as mock_create:
             mock_create.side_effect = lambda s: s.id
 
             # Создаем симбионтов
@@ -378,9 +379,10 @@ class TestSymbiontsIntegration:
 
             return paragraphs
 
-        with patch.object(symbiont_service, 'create_symbiont') as mock_create, \
-             patch.object(mock_weaviate_storage, 'search_similar_paragraphs') as mock_search:
-
+        with (
+            patch.object(symbiont_service, "create_symbiont") as mock_create,
+            patch.object(mock_weaviate_storage, "search_similar_paragraphs") as mock_search,
+        ):
             mock_create.side_effect = capture_created_symbionts
             mock_search.side_effect = mock_search_similar_paragraphs
 

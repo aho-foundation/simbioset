@@ -21,6 +21,7 @@ MAX_TREE_DEPTH = 10
 MAX_TOTAL_NODES = 10000
 MAX_CHILDREN_PER_NODE = 100
 
+
 class NodeRepository(ABC):
     """Abstract repository interface for node storage operations."""
 
@@ -80,6 +81,7 @@ class NodeRepository(ABC):
         """Clear selection state for all nodes. Returns count of cleared nodes."""
         pass
 
+
 class JSONNodeRepository(NodeRepository):
     """JSON file-based repository with simple caching."""
 
@@ -117,13 +119,13 @@ class JSONNodeRepository(NodeRepository):
                 json.dump(initial_data, f, indent=2, ensure_ascii=False)
 
             self._cache = initial_data
-            self._cache_timestamp = os.times().elapsed if hasattr(os.times(), 'elapsed') else 0
+            self._cache_timestamp = os.times().elapsed if hasattr(os.times(), "elapsed") else 0
             print(f"Storage file created: {os.path.exists(self.file_path)}")
 
     def _read_data(self, use_cache: bool = True) -> Dict[str, Any]:
         """Read data from JSON file with optional caching."""
         if use_cache and self._cache is not None:
-            current_time = os.times().elapsed if hasattr(os.times(), 'elapsed') else 0
+            current_time = os.times().elapsed if hasattr(os.times(), "elapsed") else 0
             if current_time - self._cache_timestamp < self._cache_ttl:
                 return self._cache
 
@@ -142,7 +144,7 @@ class JSONNodeRepository(NodeRepository):
 
         if use_cache:
             self._cache = data
-            self._cache_timestamp = os.times().elapsed if hasattr(os.times(), 'elapsed') else 0
+            self._cache_timestamp = os.times().elapsed if hasattr(os.times(), "elapsed") else 0
         return data
 
     def _write_data(self, data: Dict[str, Any]) -> None:
@@ -193,7 +195,7 @@ class JSONNodeRepository(NodeRepository):
 
         # Обновляем статистику
         data["metadata"]["totalNodes"] = len(data["nodes"])
-        data["metadata"]["updated"] = int(os.times().elapsed * 1000) if hasattr(os.times(), 'elapsed') else 0
+        data["metadata"]["updated"] = int(os.times().elapsed * 1000) if hasattr(os.times(), "elapsed") else 0
 
         self._write_data(data)
         return node
@@ -205,7 +207,7 @@ class JSONNodeRepository(NodeRepository):
             return None
 
         data["nodes"][node_id].update(updates)
-        data["metadata"]["updated"] = int(os.times().elapsed * 1000) if hasattr(os.times(), 'elapsed') else 0
+        data["metadata"]["updated"] = int(os.times().elapsed * 1000) if hasattr(os.times(), "elapsed") else 0
         self._write_data(data)
 
         updated_node = data["nodes"][node_id].copy()
@@ -239,7 +241,7 @@ class JSONNodeRepository(NodeRepository):
                 del data["index"]["byParent"][node_id_to_delete]
 
         data["metadata"]["totalNodes"] = len(data["nodes"])
-        data["metadata"]["updated"] = int(os.times().elapsed * 1000) if hasattr(os.times(), 'elapsed') else 0
+        data["metadata"]["updated"] = int(os.times().elapsed * 1000) if hasattr(os.times(), "elapsed") else 0
         self._write_data(data)
 
         return deleted_count
@@ -325,12 +327,13 @@ class JSONNodeRepository(NodeRepository):
 
         return cleared_count
 
+
 def test_repository():
     """Тестируем базовую функциональность репозитория."""
     print("✅ Начинаем тестирование репозитория...")
 
     # Создаем временный файл
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.json')
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
     temp_file.close()
 
     try:
@@ -340,28 +343,28 @@ def test_repository():
 
         # Тестовые данные
         test_node = {
-            'id': 'test_1',
-            'parentId': None,
-            'childrenIds': [],
-            'content': 'Test node content',
-            'type': 'message',
-            'category': 'neutral',
-            'timestamp': 1000,
-            'selected': False,
-            'sources': [],
-            'position': {'x': 0, 'y': 0, 'z': 0}
+            "id": "test_1",
+            "parentId": None,
+            "childrenIds": [],
+            "content": "Test node content",
+            "type": "message",
+            "category": "neutral",
+            "timestamp": 1000,
+            "selected": False,
+            "sources": [],
+            "position": {"x": 0, "y": 0, "z": 0},
         }
 
         # Тест создания
         created = repo.create(test_node)
-        assert created['id'] == 'test_1'
-        assert created['content'] == 'Test node content'
+        assert created["id"] == "test_1"
+        assert created["content"] == "Test node content"
         print("✅ Создание узла работает")
 
         # Тест получения
-        retrieved = repo.get_by_id('test_1')
+        retrieved = repo.get_by_id("test_1")
         assert retrieved is not None
-        assert retrieved['content'] == 'Test node content'
+        assert retrieved["content"] == "Test node content"
         print("✅ Получение узла работает")
 
         # Тест новых методов выбора
@@ -374,10 +377,10 @@ def test_repository():
         print("✅ clear_selection работает (ничего не очищено)")
 
         # Тест установки выбора
-        repo.update('test_1', {'selected': True})
+        repo.update("test_1", {"selected": True})
         selected_nodes = repo.get_selected()
         assert len(selected_nodes) == 1
-        assert selected_nodes[0]['id'] == 'test_1'
+        assert selected_nodes[0]["id"] == "test_1"
         print("✅ Установка выбора работает")
 
         # Тест очистки выбора
@@ -388,20 +391,20 @@ def test_repository():
         print("✅ Очистка выбора работает")
 
         # Тест обновления
-        updated = repo.update('test_1', {'content': 'Updated content'})
-        assert updated['content'] == 'Updated content'
+        updated = repo.update("test_1", {"content": "Updated content"})
+        assert updated["content"] == "Updated content"
         print("✅ Обновление узла работает")
 
         # Тест поиска
-        results = repo.search('Updated', {})
+        results = repo.search("Updated", {})
         assert len(results) == 1
-        assert results[0]['content'] == 'Updated content'
+        assert results[0]["content"] == "Updated content"
         print("✅ Поиск работает")
 
         # Тест статистики
         stats = repo.get_stats()
-        assert 'totalNodes' in stats
-        assert stats['totalNodes'] == 1
+        assert "totalNodes" in stats
+        assert stats["totalNodes"] == 1
         print("✅ Статистика работает")
 
         print("")
@@ -415,6 +418,7 @@ def test_repository():
         # Очистка
         if os.path.exists(temp_file.name):
             os.unlink(temp_file.name)
+
 
 if __name__ == "__main__":
     test_repository()

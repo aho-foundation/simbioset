@@ -1,0 +1,74 @@
+/* Conversation Actions Component Styles */
+
+.badgeContainer {
+  position: relative;
+  display: inline-block;
+}
+
+.factCheckBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  color: white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.factCheckBadgeTrue {
+  background: #10b981; /* green */
+}
+
+.factCheckBadgeFalse {
+  background: #ef4444; /* red */
+}
+
+.factCheckBadgeUnknown {
+  background: #64748b; /* gray */
+}
+
+.confidenceBadge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 1;
+}
+
+.webSearchErrorBadge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  background: #ef4444;
+  border-radius: 50%;
+  width: 6px;
+  height: 6px;
+  z-index: 1;
+}
+
+.bookSearchErrorBadge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  background: #ef4444;
+  border-radius: 50%;
+  width: 6px;
+  height: 6px;
+  z-index: 1;
+}
+
+.locationErrorBadge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  background: #ef4444;
+  border-radius: 50%;
+  width: 6px;
+  height: 6px;
+  z-index: 1;
+}
