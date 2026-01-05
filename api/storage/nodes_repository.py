@@ -464,3 +464,33 @@ class DatabaseNodeRepository(NodeRepository):
             "skipped": skipped,
             "total": len(nodes),
         }
+
+    def get_selected(self) -> list[dict]:
+        """Get all nodes that are currently selected.
+
+        Returns:
+            List of selected node dictionaries
+        """
+        cursor = self.db_manager.connection.cursor()
+        cursor.execute("SELECT * FROM knowledge_nodes WHERE selected = 1")
+        rows = cursor.fetchall()
+
+        selected_nodes = []
+        for row in rows:
+            node = self._dict_to_node(dict(row))
+            node["childrenIds"] = self._load_children_ids(node["id"])
+            selected_nodes.append(node)
+
+        return selected_nodes
+
+    def clear_selection(self) -> int:
+        """Clear selection state for all nodes.
+
+        Returns:
+            Number of nodes that had their selection cleared
+        """
+        cursor = self.db_manager.connection.cursor()
+        cursor.execute("UPDATE knowledge_nodes SET selected = 0 WHERE selected = 1")
+        cleared_count = cursor.rowcount
+        self.db_manager.connection.commit()
+        return cleared_count

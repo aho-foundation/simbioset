@@ -14,6 +14,7 @@
 
 ### Fixed
 - **Ошибка setNodeSelected is not defined**: Исправлена ошибка ReferenceError при загрузке страницы
+- **DatabaseNodeRepository абстрактные методы**: Добавлены реализации методов `get_selected` и `clear_selection` в DatabaseNodeRepository
 
 
 ## [0.4.17] - 2026-01-03

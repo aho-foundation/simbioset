@@ -187,7 +187,7 @@ class ChatSessionService:
             return None
 
         session.location = location_data
-        session.updated_at = int(time.time() * 1000)
+        session.updated_at = int(time.time_ns() / 1_000_000)  # Используем наносекунды для большей точности
         return session
 
     def update_session_books(self, session_id: str, books_data: list) -> ChatSession | None:

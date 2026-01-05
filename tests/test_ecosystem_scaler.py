@@ -14,7 +14,7 @@ class TestEcosystemDetector:
     """Тесты детектора экосистем."""
 
     @pytest.mark.asyncio
-    @patch("api.detect.ecosystem_scaler.call_llm")
+    @patch("api.llm.call_llm")
     async def test_detect_ecosystems_basic(self, mock_llm):
         """Тест базового обнаружения экосистем."""
         mock_llm.return_value = """[
@@ -36,7 +36,7 @@ class TestEcosystemDetector:
         assert ecosystems[0]["location"] == "Московская область"
 
     @pytest.mark.asyncio
-    @patch("api.detect.ecosystem_scaler.call_llm")
+    @patch("api.llm.call_llm")
     async def test_detect_ecosystems_with_location_data(self, mock_llm):
         """Тест обнаружения экосистем с данными локализации."""
         mock_llm.return_value = """[
@@ -58,7 +58,7 @@ class TestEcosystemDetector:
         assert ecosystems[0]["time_reference"] == "2024 год"
 
     @pytest.mark.asyncio
-    @patch("api.detect.ecosystem_scaler.call_llm")
+    @patch("api.llm.call_llm")
     async def test_detect_ecosystems_auto_location(self, mock_llm):
         """Тест автоматического извлечения локализации."""
         mock_llm.return_value = """[
@@ -78,7 +78,7 @@ class TestEcosystemDetector:
         assert ecosystems[0]["name"] == "лес"
 
     @pytest.mark.asyncio
-    @patch("api.detect.ecosystem_scaler.call_llm")
+    @patch("api.llm.call_llm")
     async def test_detect_ecosystems_multiple(self, mock_llm):
         """Тест обнаружения нескольких экосистем."""
         mock_llm.return_value = """[
@@ -107,7 +107,7 @@ class TestEcosystemDetector:
         assert ecosystems[1]["scale"] == "organ"
 
     @pytest.mark.asyncio
-    @patch("api.detect.ecosystem_scaler.call_llm")
+    @patch("api.llm.call_llm")
     async def test_detect_ecosystems_nested(self, mock_llm):
         """Тест обнаружения вложенных экосистем."""
         mock_llm.return_value = """[
@@ -125,7 +125,7 @@ class TestEcosystemDetector:
         assert ecosystems[0]["parent_ecosystem"] == "биосфера"
 
     @pytest.mark.asyncio
-    @patch("api.detect.ecosystem_scaler.call_llm")
+    @patch("api.llm.call_llm")
     async def test_detect_ecosystems_empty(self, mock_llm):
         """Тест обработки пустого результата."""
         mock_llm.return_value = "[]"
@@ -135,7 +135,7 @@ class TestEcosystemDetector:
         assert len(ecosystems) == 0
 
     @pytest.mark.asyncio
-    @patch("api.detect.ecosystem_scaler.call_llm")
+    @patch("api.llm.call_llm")
     async def test_detect_ecosystems_invalid_json(self, mock_llm):
         """Тест обработки невалидного JSON."""
         mock_llm.return_value = "Не JSON ответ"

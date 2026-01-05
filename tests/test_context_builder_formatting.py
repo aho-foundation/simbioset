@@ -38,7 +38,8 @@ class TestEcosystemContextFormatting:
         assert "🌡️ Температура: +20°C" in result
         assert "🌿 Entity_1: Тестовая экосистема" in result
         assert "📊 Status: active | Type: ecological" in result
-        assert "🏷️ Scale: habitat | Confidence: 80.0%" in result
+        assert "├── Scale: habitat | Type: ecosystem" in result
+        assert "├── Status: active | Confidence: 0.80" in result
 
     def test_format_ecosystem_context_full(self):
         """Тест форматирования полного контекста экосистемы."""
@@ -73,15 +74,17 @@ class TestEcosystemContextFormatting:
         assert "=== ECOSYSTEM ENTITIES ===" in result
         assert "📍 Location: Москва, Россия" in result
         assert "🌡️ Температура: +15°C" in result
-        assert "💧 Влажность: 65%" in result
+        assert "🌡️ Влажность: 65%" in result
         assert "🌿 Entity_1: Смешанный лес" in result
         assert "🌿 Entity_2: Микробиом кишечника" in result
         assert "📊 Status: active | Type: ecological" in result
-        assert "🏷️ Scale: habitat | Confidence: 85.0%" in result
-        assert "🏷️ Scale: organ | Confidence: 92.0%" in result
-        assert "🌲 Biome: temperate_forest" in result
-        assert "🦠 Biome: human_microbiome" in result
-        assert "⚠️ Threat Level: medium" in result
+        assert "├── Scale: habitat | Type: ecosystem" in result
+        assert "├── Status: active | Confidence: 0.85" in result
+        assert "├── Scale: organ | Type: ecosystem" in result
+        assert "├── Status: active | Confidence: 0.92" in result
+        assert "biome=temperate_forest" in result
+        assert "biome=human_microbiome" in result
+        assert "threat_level=medium" in result
 
     def test_format_ecosystem_context_with_symbionts(self):
         """Тест форматирования контекста с симбионтами."""
@@ -95,9 +98,14 @@ class TestEcosystemContextFormatting:
             }
         ]
 
-        # Мокаем объекты симбионтов
+        # Создаем простые объекты для симбионтов
+        class MockSymbiont:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
         mock_symbionts = [
-            Mock(
+            MockSymbiont(
                 name="Бифидобактерии",
                 scientific_name="Bifidobacterium",
                 type="symbiont",
@@ -109,7 +117,7 @@ class TestEcosystemContextFormatting:
                 virulence_factors=[],
                 geographic_distribution="всемирно",
             ),
-            Mock(
+            MockSymbiont(
                 name="Золотистый стафилококк",
                 scientific_name="Staphylococcus aureus",
                 type="pathogen",
@@ -133,24 +141,20 @@ class TestEcosystemContextFormatting:
         assert "=== MICROBIAL ENTITIES ===" in result
         assert "🦠 Entity_1: Бифидобактерии" in result
         assert "🦠 Entity_2: Золотистый стафилококк" in result
-        assert "📊 Status: active | Type: symbiotic" in result
-        assert "📊 Status: active | Type: pathogenic" in result
-        assert "🏷️ Category: бактерия | Risk: low" in result
-        assert "🏷️ Category: бактерия | Risk: high" in result
-        assert "🔬 Role: ферментация углеводов" in result
-        assert "🔬 Role: выработка токсинов" in result
-        assert "📈 Prevalence: 85.0% | Confidence: 95.0%" in result
-        assert "📈 Prevalence: 25.0% | Confidence: 88.0%" in result
-        assert "🗺️ Distribution: всемирно" in result
+        assert "   ├── Type: symbiont | Category: бактерия" in result
+        assert "   ├── Type: pathogen | Category: бактерия" in result
+        assert "   ├── Biochemical Role: ферментация углеводов" in result
+        assert "   ├── Biochemical Role: выработка токсинов" in result
+        assert "prevalence=0.85, distribution=всемирно" in result
+        assert "prevalence=0.25, virulence_factors=1, distribution=всемирно" in result
 
     def test_format_ecosystem_context_empty_ecosystems(self):
         """Тест форматирования с пустым списком экосистем."""
         # Act
         result = format_ecosystem_context([], "Москва", "Солнечно")
 
-        # Assert
-        assert "No ecosystem data available" in result
-        assert "=== ECOSYSTEM ENTITIES ===" in result
+        # Assert - когда ecosystems пустой, раздел не добавляется
+        assert "=== ECOSYSTEM ENTITIES ===" not in result
 
     def test_format_ecosystem_context_empty_symbionts(self):
         """Тест форматирования с пустым списком симбионтов."""

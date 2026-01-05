@@ -442,7 +442,7 @@ def format_ecosystem_context(
                     context_parts.append(f"   ├── Scientific Name: {symbiont.scientific_name}")
 
                 # Биохимическая роль
-                if symbiont.biochemical_role:
+                if symbiont.biochemical_role and isinstance(symbiont.biochemical_role, str):
                     # Разбиваем длинный текст на строки
                     role_lines = [
                         symbiont.biochemical_role[i : i + 60] for i in range(0, len(symbiont.biochemical_role), 60)
@@ -462,7 +462,7 @@ def format_ecosystem_context(
                 metrics = []
                 if symbiont.prevalence and symbiont.prevalence > 0:
                     metrics.append(f"prevalence={symbiont.prevalence:.2f}")
-                if symbiont.virulence_factors:
+                if symbiont.virulence_factors and hasattr(symbiont.virulence_factors, '__len__'):
                     metrics.append(f"virulence_factors={len(symbiont.virulence_factors)}")
                 if symbiont.geographic_distribution:
                     metrics.append(f"distribution={symbiont.geographic_distribution}")

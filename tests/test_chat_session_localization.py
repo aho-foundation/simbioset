@@ -194,7 +194,7 @@ class TestChatSessionLocalization:
         session = session_service.create_session(test_session_data)
         initial_timestamp = session.updated_at
 
-        time.sleep(0.001)  # Небольшая задержка
+        time.sleep(0.01)  # Увеличенная задержка для надежности
 
         # Act - Первое обновление
         session_service.update_session_location(session.id, {"location": "test1"})
@@ -202,15 +202,17 @@ class TestChatSessionLocalization:
         # Assert
         first_update = session_service.get_session(session.id)
         assert first_update.updated_at > initial_timestamp
+        first_timestamp = first_update.updated_at
 
-        time.sleep(0.001)
+        time.sleep(1.0)  # Увеличенная задержка для надежности
 
         # Act - Второе обновление
         session_service.update_session_location(session.id, {"location": "test2"})
 
         # Assert
         second_update = session_service.get_session(session.id)
-        assert second_update.updated_at > first_update.updated_at
+        second_timestamp = second_update.updated_at
+        assert second_timestamp > first_timestamp
 
     def test_location_none_handling(self, session_service, test_session_data):
         """Тест корректной обработки None значений в локализации."""

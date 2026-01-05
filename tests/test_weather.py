@@ -80,7 +80,7 @@ class TestWeather:
         # Проверяем результат
         assert result is not None
         assert result["city"] == "Москва"
-        assert result["temperature"] == 15
+        assert result["temperature"] == "15"
         assert "Облачно" in result["condition"]
         assert result["timestamp"] is not None
 

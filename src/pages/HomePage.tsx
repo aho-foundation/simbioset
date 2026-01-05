@@ -1,7 +1,6 @@
 import { A } from '@solidjs/router'
 import { Component } from 'solid-js'
 import ParagraphSearch from '~/components/ParagraphSearch'
-import { TestSelection } from '~/components/TestSelection'
 import { useI18n } from '~/i18n'
 
 import styles from '~/styles/home.module.css'
@@ -11,9 +10,6 @@ const Home: Component = () => {
 
   return (
     <div class={styles.container}>
-      {/* Test component for debugging */}
-      <TestSelection />
-
       {/* Hero Section */}
       <section class={styles.hero}>
         <div class={styles.heroContent}>

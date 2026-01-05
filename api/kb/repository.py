@@ -538,9 +538,9 @@ class JSONNodeRepository(NodeRepository):
         """
         data = self._read_data()
         selected_nodes = []
-        for node_id, node_data in data["nodes"].items():
+        for _node_id, node_data in data["nodes"].items():
             if node_data.get("selected", False):
-                selected_nodes.append(node_data)
+                selected_nodes.append(cast(dict, node_data))
         return selected_nodes
 
     def clear_selection(self) -> int:

@@ -5,7 +5,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from api.logger import root_logger as logger
 
-load_dotenv()
+# Load .env file if it exists and is readable
+try:
+    load_dotenv()
+except (PermissionError, OSError) as e:
+    logger.warning(f"Could not load .env file: {e}. Using environment variables only.")
 
 WEBHOOK_URL = "https://simbioset.ru/api/bot/"
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
