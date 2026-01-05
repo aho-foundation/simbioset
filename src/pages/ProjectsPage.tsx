@@ -16,19 +16,19 @@ import styles from './ProjectsPage.module.css'
 // Mock data for when backend is unavailable
 const getMockProjects = (): Project[] => [
   {
-    id: 'mock-cs-1',
-    title: 'Система анализа экосистем на основе ИИ',
+    id: 'mock-symbioset-1',
+    title: 'Симбиосеть - Платформа для экологических исследований',
     description:
-      'Разработка интеллектуальной системы для мониторинга и анализа экологических данных с использованием машинного обучения и компьютерного зрения.',
+      'Интегрированная платформа, объединяющая ИИ-анализ экосистем с citizen science подходом. Волонтеры собирают данные, а система анализирует их с помощью машинного обучения для понимания симбиотических связей в природе.',
     status: 'active',
     creation_date: '2025-01-01T10:00:00Z',
     update_date: '2025-01-15T14:30:00Z',
-    knowledge_base_id: 'kb-ecosystem-analysis',
-    tags: ['ai', 'ecology', 'machine-learning', 'computer-vision'],
+    knowledge_base_id: 'kb-symbioset',
+    tags: ['ai', 'ecology', 'citizen-science', 'machine-learning', 'symbiosis', 'data-collection'],
     ideas: [
       {
         id: 'idea-1',
-        project_id: 'mock-cs-1',
+        project_id: 'mock-symbioset-1',
         author_id: 'user1',
         content: 'Добавить поддержку спутниковых снимков для анализа лесных пожаров',
         submission_date: '2025-01-10T09:00:00Z',
@@ -37,12 +37,30 @@ const getMockProjects = (): Project[] => [
       },
       {
         id: 'idea-2',
-        project_id: 'mock-cs-1',
+        project_id: 'mock-symbioset-1',
         author_id: 'user2',
         content: 'Интеграция с датчиками IoT для реального времени мониторинга',
         submission_date: '2025-01-12T11:00:00Z',
         votes: 8,
         status: 'submitted'
+      },
+      {
+        id: 'idea-3',
+        project_id: 'mock-symbioset-1',
+        author_id: 'user7',
+        content: 'Добавить мобильное приложение для оффлайн сбора данных',
+        submission_date: '2025-01-11T13:00:00Z',
+        votes: 15,
+        status: 'approved'
+      },
+      {
+        id: 'idea-4',
+        project_id: 'mock-symbioset-1',
+        author_id: 'user8',
+        content: 'Система геймификации для мотивации волонтеров',
+        submission_date: '2025-01-13T10:00:00Z',
+        votes: 9,
+        status: 'reviewed'
       }
     ],
     contributors: [
@@ -59,6 +77,20 @@ const getMockProjects = (): Project[] => [
         role: 'Data Scientist',
         contribution_date: '2025-01-08T14:00:00Z',
         contributions: ['Анализ данных', 'Валидация модели']
+      },
+      {
+        user_id: 'user9',
+        name: 'Дмитрий Сидоров',
+        role: 'Full-stack разработчик',
+        contribution_date: '2025-01-08T11:00:00Z',
+        contributions: ['Фронтенд разработка', 'API дизайн']
+      },
+      {
+        user_id: 'user10',
+        name: 'Елена Кузнецова',
+        role: 'UX/UI дизайнер',
+        contribution_date: '2025-01-09T15:00:00Z',
+        contributions: ['Дизайн интерфейса', 'Прототипирование']
       }
     ]
   },
@@ -126,53 +158,6 @@ const getMockProjects = (): Project[] => [
         amount: 500000,
         rewards: ['Серебряные награды +', 'Приглашение на презентацию', 'Совместная разработка требований'],
         limit: 5
-      }
-    ]
-  },
-  {
-    id: 'mock-cs-2',
-    title: 'Платформа citizen science для экологии',
-    description:
-      'Создание веб-платформы, где волонтеры могут участвовать в сборе и анализе экологических данных, помогая ученым в исследованиях.',
-    status: 'active',
-    creation_date: '2025-01-07T09:00:00Z',
-    update_date: '2025-01-14T11:20:00Z',
-    knowledge_base_id: 'kb-citizen-science',
-    tags: ['citizen-science', 'volunteers', 'data-collection', 'web-platform'],
-    ideas: [
-      {
-        id: 'idea-3',
-        project_id: 'mock-cs-2',
-        author_id: 'user7',
-        content: 'Добавить мобильное приложение для оффлайн сбора данных',
-        submission_date: '2025-01-11T13:00:00Z',
-        votes: 15,
-        status: 'approved'
-      },
-      {
-        id: 'idea-4',
-        project_id: 'mock-cs-2',
-        author_id: 'user8',
-        content: 'Система геймификации для мотивации волонтеров',
-        submission_date: '2025-01-13T10:00:00Z',
-        votes: 9,
-        status: 'reviewed'
-      }
-    ],
-    contributors: [
-      {
-        user_id: 'user9',
-        name: 'Дмитрий Сидоров',
-        role: 'Full-stack разработчик',
-        contribution_date: '2025-01-08T11:00:00Z',
-        contributions: ['Фронтенд разработка', 'API дизайн']
-      },
-      {
-        user_id: 'user10',
-        name: 'Елена Кузнецова',
-        role: 'UX/UI дизайнер',
-        contribution_date: '2025-01-09T15:00:00Z',
-        contributions: ['Дизайн интерфейса', 'Прототипирование']
       }
     ]
   },
