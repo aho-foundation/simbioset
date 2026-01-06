@@ -1120,8 +1120,7 @@ const InterviewPage = () => {
 
     const artifactsSummary = analysisArtifacts
       .map((msg, index) => {
-        const sourceType = msg.sources?.[0]?.type || 'unknown'
-        return `## Артефакт ${index + 1}: ${sourceType.toUpperCase()}\n${msg.content}\n`
+        return `## Артефакт ${index + 1}\n${msg.content}\n`
       })
       .join('\n')
 
@@ -1133,19 +1132,19 @@ const InterviewPage = () => {
       <div class={styles.chatMain} style={{ 'padding-bottom': chatMainPaddingBottom() }}>
         <div class={styles.chatMessages}>
           <div class={styles.messagesContainer}>
-            <For each={messages()}>
-              {(message) => (
-                <div
-                  class={`${styles.conceptBubble} ${message.role === 'user' ? styles.userConcept : styles.aiConcept}`}
-                >
-                  <Show
-                    when={editingMessageId() !== null && String(editingMessageId()) === String(message.id)}
-                    fallback={
-                      <>
-                        <div class={styles.conceptContent}>
-                          <MarkdownRenderer
-                            content={message.content}
-                            messageId={message.id}
+          <For each={messages()}>
+            {(message) => (
+              <div
+                class={`${styles.conceptBubble} ${message.role === 'user' ? styles.userConcept : styles.aiConcept}`}
+              >
+                <Show
+                  when={editingMessageId() !== null && String(editingMessageId()) === String(message.id)}
+                  fallback={
+                    <>
+                      <div class={styles.conceptContent}>
+                        <MarkdownRenderer
+                          content={message.content}
+                          messageId={message.id}
                             suggestedArtifacts={artifacts
                               .artifacts()
                               .filter((a) => a.suggested)
@@ -1155,96 +1154,96 @@ const InterviewPage = () => {
                                 message_id: String(a.messageId),
                                 suggested: a.suggested || false
                               }))}
-                            onTextSelection={(text) => {
-                              setSelectedText(text)
-                              setSelectedMessageId(message.id)
-                            }}
-                          />
-                        </div>
-                        <MessageActions
-                          content={message.content}
-                          selectedText={selectedMessageId() === message.id ? selectedText() : undefined}
-                          onCopy={() => copyToClipboard(selectedText() || message.content)}
-                          onFactCheck={() => void runFactCheck(selectedText() || message.content)}
+                          onTextSelection={(text) => {
+                            setSelectedText(text)
+                            setSelectedMessageId(message.id)
+                          }}
+                        />
+                      </div>
+                      <MessageActions
+                        content={message.content}
+                        selectedText={selectedMessageId() === message.id ? selectedText() : undefined}
+                        onCopy={() => copyToClipboard(selectedText() || message.content)}
+                        onFactCheck={() => void runFactCheck(selectedText() || message.content)}
                           onWebSearch={() =>
                             void performWebSearchForMessage(selectedText() || message.content)
                           }
                           onBookSearch={() =>
                             void performBookSearchForMessage(selectedText() || message.content)
                           }
-                          onEdit={() => startEditing(message.id, message.content)}
-                          onMarkArtifact={handleMarkArtifact}
-                          isFactCheckLoading={detectorLoading()}
-                          sources={message.role === 'assistant' ? message.sources : undefined}
-                        />
-                      </>
-                    }
-                  >
-                    <MessageEditor
-                      content={editingContent()}
-                      onContentChange={setEditingContent}
-                      onSave={() => void saveEditedMessage(Number(message.id))}
-                      onCancel={cancelEditing}
-                    />
-                  </Show>
-                </div>
-              )}
-            </For>
-
-            <Show when={isLoading()}>
-              <div class={`${styles.conceptBubble} ${styles.aiConcept} ${styles.loading}`}>
-                <div class={styles.typingIndicator}>
-                  <div class={styles.dot} />
-                  <div class={styles.dot} />
-                  <div class={styles.dot} />
-                </div>
+                        onEdit={() => startEditing(message.id, message.content)}
+                        onMarkArtifact={handleMarkArtifact}
+                        isFactCheckLoading={detectorLoading()}
+                        sources={message.role === 'assistant' ? message.sources : undefined}
+                      />
+                    </>
+                  }
+                >
+                  <MessageEditor
+                    content={editingContent()}
+                    onContentChange={setEditingContent}
+                    onSave={() => void saveEditedMessage(Number(message.id))}
+                    onCancel={cancelEditing}
+                  />
+                </Show>
               </div>
-            </Show>
+            )}
+          </For>
 
-            {/* Show buttons only for new sessions (no messages yet) */}
-            <Show when={messages().length === 0}>
-              <div class={styles.quickButtons}>
-                <div class={styles.quickButtonsTitle}>Начните разговор:</div>
-                <div class={styles.quickButtonsGrid}>
-                  <For each={starters()}>
-                    {(starter, index) => (
-                      <button
-                        class={styles.quickButton}
-                        onClick={() => {
-                          setInputValue(starter)
-                          void sendMessage()
-                        }}
-                      >
-                        <span class={styles.quickButtonIcon}>
-                          {index() === 0 ? '🤝' : index() === 1 ? '🌱' : '💡'}
-                        </span>
-                        <span class={styles.quickButtonText}>{starter}</span>
-                      </button>
-                    )}
-                  </For>
-                  <button
-                    class={styles.moreButton}
-                    onClick={() => {
-                      void loadMoreStarters()
-                    }}
-                    disabled={isLoadingMoreStarters()}
-                    title="Показать другие варианты"
-                  >
-                    <Show
-                      when={isLoadingMoreStarters()}
-                      fallback={<span class={styles.moreButtonIcon}>↻</span>}
+          <Show when={isLoading()}>
+            <div class={`${styles.conceptBubble} ${styles.aiConcept} ${styles.loading}`}>
+              <div class={styles.typingIndicator}>
+                <div class={styles.dot} />
+                <div class={styles.dot} />
+                <div class={styles.dot} />
+              </div>
+            </div>
+          </Show>
+
+          {/* Show buttons only for new sessions (no messages yet) */}
+          <Show when={messages().length === 0}>
+            <div class={styles.quickButtons}>
+              <div class={styles.quickButtonsTitle}>Начните разговор:</div>
+              <div class={styles.quickButtonsGrid}>
+                <For each={starters()}>
+                  {(starter, index) => (
+                    <button
+                      class={styles.quickButton}
+                      onClick={() => {
+                        setInputValue(starter)
+                        void sendMessage()
+                      }}
                     >
-                      <div class={styles.typingIndicator}>
-                        <div class={styles.dot} />
-                        <div class={styles.dot} />
-                        <div class={styles.dot} />
-                      </div>
-                    </Show>
-                    <span class={styles.moreButtonText}>Ещё</span>
-                  </button>
-                </div>
+                      <span class={styles.quickButtonIcon}>
+                        {index() === 0 ? '🤝' : index() === 1 ? '🌱' : '💡'}
+                      </span>
+                      <span class={styles.quickButtonText}>{starter}</span>
+                    </button>
+                  )}
+                </For>
+                <button
+                  class={styles.moreButton}
+                  onClick={() => {
+                    void loadMoreStarters()
+                  }}
+                  disabled={isLoadingMoreStarters()}
+                  title="Показать другие варианты"
+                >
+                  <Show
+                    when={isLoadingMoreStarters()}
+                    fallback={<span class={styles.moreButtonIcon}>↻</span>}
+                  >
+                    <div class={styles.typingIndicator}>
+                      <div class={styles.dot} />
+                      <div class={styles.dot} />
+                      <div class={styles.dot} />
+                    </div>
+                  </Show>
+                  <span class={styles.moreButtonText}>Ещё</span>
+                </button>
               </div>
-            </Show>
+            </div>
+          </Show>
           </div>
         </div>
 

@@ -166,25 +166,43 @@ def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
 
         # Создаем источники из найденных доменов
         for domain, url in domain_sources.items():
-            # Определяем тип по домену
+            # Определяем тип по домену (текстовый, без эмодзи)
             if "wikipedia" in domain:
-                source_type = "📚"
-                title = f"Википедия - {domain}"
+                source_type = "Википедия"
+                title = domain
             elif "scholar.google" in domain:
-                source_type = "📄"
+                source_type = "Научная литература"
                 title = "Google Scholar"
             elif "pubmed" in domain or "nih.gov" in domain:
-                source_type = "🔬"
+                source_type = "Медицинские исследования"
                 title = "PubMed/NCBI"
             elif "researchgate" in domain:
-                source_type = "📄"
+                source_type = "Научные публикации"
                 title = "ResearchGate"
             elif "arxiv" in domain:
-                source_type = "📄"
+                source_type = "Препринты"
                 title = "arXiv"
+            elif "github.com" in domain or "gitlab.com" in domain:
+                source_type = "Код и разработка"
+                title = domain
+            elif "youtube.com" in domain or "vimeo.com" in domain:
+                source_type = "Видео"
+                title = domain
+            elif "news" in domain or "bbc" in domain or "cnn" in domain:
+                source_type = "Новости"
+                title = domain
+            elif "edu" in domain or "ac." in domain:
+                source_type = "Образование"
+                title = domain
+            elif "gov" in domain:
+                source_type = "Официальные данные"
+                title = domain
+            elif "org" in domain and ("wikipedia" not in domain):
+                source_type = "Некоммерческая организация"
+                title = domain
             else:
-                source_type = "🌐"
-                title = f"Веб-ресурс - {domain}"
+                source_type = "Веб-ресурс"
+                title = domain
 
             sources.append({"title": title, "type": source_type, "url": url})
 
@@ -206,6 +224,14 @@ def parse_sources_from_response(response_content: str) -> List[Dict[str, str]]:
             "publication": "Публикация",
             "исследование": "Исследование",
             "research": "Исследование",
+            "видео": "Видео",
+            "video": "Видео",
+            "новости": "Новости",
+            "news": "Новости",
+            "образование": "Образование",
+            "education": "Образование",
+            "код": "Код",
+            "code": "Код",
         }
 
         found_types = []
@@ -791,11 +817,11 @@ async def get_current_chat_session(request: Request, response: Response):
 
         # Create chat session
         chat_session_data = ChatSessionCreate(topic="New Chat Session", conceptTreeId=None, ecosystem=None)
-        chat_session = chat_session_service.create_session(chat_session_data)
+        chat_session = await chat_session_service.create_session(chat_session_data)
 
         # Link them (async)
         user_session = await session_manager.get_session(user_session_id)
-        if user_session:
+        if user_session and chat_session:
             user_session["chat_session_id"] = chat_session.id
             await session_manager.update_session(user_session_id, user_session)
 

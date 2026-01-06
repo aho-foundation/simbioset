@@ -1595,12 +1595,6 @@
   font-weight: 500;
 }
 
-.sourceType {
-  font-size: 0.8rem;
-  color: #9ca3af;
-  font-style: italic;
-  white-space: nowrap;
-}
 
 /* Inline sources styles */
 .sourcesInline {

@@ -377,7 +377,7 @@ def format_ecosystem_context(
     else:
         context_parts.append("📍 Location: Not specified")
         context_parts.append("📊 Status: inactive | Type: geographic")
-    context_parts.append("")
+        context_parts.append("")
 
     # === МЕТЕОРОЛОГИЧЕСКИЕ МЕТРИКИ ===
     context_parts.append("=== WEATHER METRICS ===")
@@ -410,7 +410,7 @@ def format_ecosystem_context(
     else:
         context_parts.append("🌤️ Weather: Not available")
         context_parts.append("📊 Status: inactive | Type: meteorological")
-    context_parts.append("")
+        context_parts.append("")
 
     # === ЭКОСИСТЕМНЫЕ СУЩНОСТИ ===
     if ecosystems:

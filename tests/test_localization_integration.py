@@ -32,7 +32,7 @@ async def test_session_localization():
     # Создаем тестовую сессию
     session_service = ChatSessionService()
     session_data = ChatSessionCreate(topic="Тестовая сессия для локализации", conceptTreeId=None)
-    test_session = session_service.create_session(session_data)
+    test_session = await session_service.create_session(session_data)
 
     log(f"✅ Создана тестовая сессия: {test_session.id}")
 
@@ -49,20 +49,20 @@ async def test_session_localization():
         "source": "test",
     }
 
-    updated_session = session_service.update_session_location(test_session.id, test_location_data)
+    updated_session = await session_service.update_session_location(test_session.id, test_location_data)
 
     assert updated_session is not None, "Сессия должна быть обновлена"
     assert updated_session.location == test_location_data, "Локализация должна быть сохранена"
     log("✅ Локализация успешно сохранена в сессии")
 
     # Проверяем получение сессии с локализацией
-    retrieved_session = session_service.get_session(test_session.id)
+    retrieved_session = await session_service.get_session(test_session.id)
     assert retrieved_session is not None, "Сессия должна быть найдена"
     assert retrieved_session.location == test_location_data, "Локализация должна сохраняться при получении"
     log("✅ Локализация сохраняется при получении сессии")
 
     # Сбрасываем локализацию
-    reset_session = session_service.update_session_location(test_session.id, None)
+    reset_session = await session_service.update_session_location(test_session.id, None)
     assert reset_session is not None, "Сессия должна быть обновлена"
     assert reset_session.location is None, "Локализация должна быть сброшена"
     log("✅ Локализация успешно сброшена")

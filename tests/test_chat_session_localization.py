@@ -2,14 +2,29 @@
 Unit тесты для функциональности локализации в ChatSessionService.
 
 Тестирует привязку локализации к сессиям чата.
+Использует локальный Redis для тестирования.
 """
 
+from unittest.mock import AsyncMock, patch
 import pytest
-from unittest.mock import Mock
+import redis.asyncio as redis
 import time
 
 from api.chat.service import ChatSessionService
 from api.chat.models import ChatSessionCreate
+
+
+@pytest.fixture(scope="session")
+async def redis_available():
+    """Проверяет доступность Redis."""
+    try:
+        # Создаем тестовый Redis клиент
+        test_redis = redis.from_url("redis://localhost:6379", decode_responses=True)
+        await test_redis.ping()
+        await test_redis.close()
+        return True
+    except Exception:
+        return False
 
 
 class TestChatSessionLocalization:
@@ -25,20 +40,39 @@ class TestChatSessionLocalization:
         """Фикстура с тестовыми данными сессии."""
         return ChatSessionCreate(topic="Тестовая сессия для локализации", conceptTreeId=None)
 
-    def test_create_session_initial_location_none(self, session_service, test_session_data):
+    @pytest.fixture(autouse=True)
+    def mock_session_manager(self):
+        """Автоматически мокаем session_manager для всех тестов."""
+        with patch("api.chat.service.session_manager") as mock_manager:
+            # Настраиваем моки для всех методов
+            mock_manager.create_session = AsyncMock()
+            mock_manager.get_session = AsyncMock(return_value=None)
+            mock_manager.update_session = AsyncMock()
+
+            # Для тестов get_session возвращаем данные сессии когда нужно
+            def mock_get_session_side_effect(session_id):
+                # Имитируем возврат данных сессии из кеша сервиса
+                return None  # По умолчанию None, переопределяем в тестах при необходимости
+
+            mock_manager.get_session.side_effect = mock_get_session_side_effect
+            yield mock_manager
+
+    @pytest.mark.asyncio
+    async def test_create_session_initial_location_none(self, session_service, test_session_data):
         """Тест, что при создании сессии локализация изначально отсутствует."""
         # Act
-        session = session_service.create_session(test_session_data)
+        session = await session_service.create_session(test_session_data)
 
         # Assert
         assert session.location is None
         assert session.id is not None
         assert session.topic == test_session_data.topic
 
-    def test_update_session_location_success(self, session_service, test_session_data):
+    @pytest.mark.asyncio
+    async def test_update_session_location_success(self, session_service, test_session_data):
         """Тест успешного обновления локализации сессии."""
         # Arrange
-        session = session_service.create_session(test_session_data)
+        session = await session_service.create_session(test_session_data)
         original_updated_at = session.updated_at
 
         test_location_data = {
@@ -55,7 +89,7 @@ class TestChatSessionLocalization:
         time.sleep(0.001)
 
         # Act
-        updated_session = session_service.update_session_location(session.id, test_location_data)
+        updated_session = await session_service.update_session_location(session.id, test_location_data)
 
         # Assert
         assert updated_session is not None
@@ -63,10 +97,11 @@ class TestChatSessionLocalization:
         assert updated_session.location == test_location_data
         assert updated_session.updated_at > original_updated_at
 
-    def test_update_session_location_clear(self, session_service, test_session_data):
+    @pytest.mark.asyncio
+    async def test_update_session_location_clear(self, session_service, test_session_data):
         """Тест сброса локализации сессии."""
         # Arrange
-        session = session_service.create_session(test_session_data)
+        session = await session_service.create_session(test_session_data)
         test_location_data = {
             "location": "Москва",
             "ecosystems": [{"name": "парк", "scale": "habitat"}],
@@ -74,49 +109,54 @@ class TestChatSessionLocalization:
         }
 
         # Устанавливаем локализацию
-        session_service.update_session_location(session.id, test_location_data)
-        assert session.location == test_location_data
+        await session_service.update_session_location(session.id, test_location_data)
+        # Нужно заново получить сессию, чтобы проверить location
+        updated_session = await session_service.get_session(session.id)
+        assert updated_session.location == test_location_data
 
         # Act - Сбрасываем локализацию
-        cleared_session = session_service.update_session_location(session.id, None)
+        cleared_session = await session_service.update_session_location(session.id, None)
 
         # Assert
         assert cleared_session is not None
         assert cleared_session.location is None
         assert cleared_session.id == session.id
 
-    def test_update_session_location_not_found(self, session_service):
+    @pytest.mark.asyncio
+    async def test_update_session_location_not_found(self, session_service):
         """Тест обновления локализации для несуществующей сессии."""
         # Act
-        result = session_service.update_session_location("nonexistent-id", {"location": "test"})
+        result = await session_service.update_session_location("nonexistent-id", {"location": "test"})
 
         # Assert
         assert result is None
 
-    def test_get_session_with_location(self, session_service, test_session_data):
+    @pytest.mark.asyncio
+    async def test_get_session_with_location(self, session_service, test_session_data):
         """Тест получения сессии с установленной локализацией."""
         # Arrange
-        session = session_service.create_session(test_session_data)
+        session = await session_service.create_session(test_session_data)
         test_location_data = {
             "location": "Санкт-Петербург",
             "ecosystems": [{"name": "река Нева", "scale": "habitat"}],
             "coordinates": {"latitude": 59.9343, "longitude": 30.3351},
             "source": "manual",
         }
-        session_service.update_session_location(session.id, test_location_data)
+        await session_service.update_session_location(session.id, test_location_data)
 
         # Act
-        retrieved_session = session_service.get_session(session.id)
+        retrieved_session = await session_service.get_session(session.id)
 
         # Assert
         assert retrieved_session is not None
         assert retrieved_session.location == test_location_data
         assert retrieved_session.id == session.id
 
-    def test_location_data_structure_preservation(self, session_service, test_session_data):
+    @pytest.mark.asyncio
+    async def test_location_data_structure_preservation(self, session_service, test_session_data):
         """Тест сохранения структуры данных локализации."""
         # Arrange
-        session = session_service.create_session(test_session_data)
+        session = await session_service.create_session(test_session_data)
 
         complex_location_data = {
             "location": "Лесной массив",
@@ -124,7 +164,7 @@ class TestChatSessionLocalization:
                 {
                     "name": "Смешанный лес",
                     "scale": "habitat",
-                    "description": "Лес с преобладанием сосны и березы",
+                    "description": "Лес с преобданием сосны и березы",
                     "confidence": 0.85,
                     "biome": "temperate_forest",
                     "threat_level": "medium",
@@ -144,7 +184,7 @@ class TestChatSessionLocalization:
         }
 
         # Act
-        updated_session = session_service.update_session_location(session.id, complex_location_data)
+        updated_session = await session_service.update_session_location(session.id, complex_location_data)
 
         # Assert
         assert updated_session is not None
@@ -161,11 +201,12 @@ class TestChatSessionLocalization:
         assert location["source"] == "integrated_analysis"
         assert "timestamp" in location
 
-    def test_multiple_sessions_independent_location(self, session_service):
+    @pytest.mark.asyncio
+    async def test_multiple_sessions_independent_location(self, session_service):
         """Тест независимости локализации разных сессий."""
         # Arrange
-        session1 = session_service.create_session(ChatSessionCreate(topic="Сессия 1", conceptTreeId=None))
-        session2 = session_service.create_session(ChatSessionCreate(topic="Сессия 2", conceptTreeId=None))
+        session1 = await session_service.create_session(ChatSessionCreate(topic="Сессия 1", conceptTreeId=None))
+        session2 = await session_service.create_session(ChatSessionCreate(topic="Сессия 2", conceptTreeId=None))
 
         location1 = {
             "location": "Москва",
@@ -177,60 +218,62 @@ class TestChatSessionLocalization:
         }
 
         # Act
-        session_service.update_session_location(session1.id, location1)
-        session_service.update_session_location(session2.id, location2)
+        await session_service.update_session_location(session1.id, location1)
+        await session_service.update_session_location(session2.id, location2)
 
         # Assert
-        updated_session1 = session_service.get_session(session1.id)
-        updated_session2 = session_service.get_session(session2.id)
+        updated_session1 = await session_service.get_session(session1.id)
+        updated_session2 = await session_service.get_session(session2.id)
 
         assert updated_session1.location == location1
         assert updated_session2.location == location2
         assert updated_session1.location != updated_session2.location
 
-    def test_location_update_timestamp(self, session_service, test_session_data):
+    @pytest.mark.asyncio
+    async def test_location_update_timestamp(self, session_service, test_session_data):
         """Тест обновления timestamp при изменении локализации."""
         # Arrange
-        session = session_service.create_session(test_session_data)
+        session = await session_service.create_session(test_session_data)
         initial_timestamp = session.updated_at
 
         time.sleep(0.01)  # Увеличенная задержка для надежности
 
         # Act - Первое обновление
-        session_service.update_session_location(session.id, {"location": "test1"})
+        await session_service.update_session_location(session.id, {"location": "test1"})
 
         # Assert
-        first_update = session_service.get_session(session.id)
+        first_update = await session_service.get_session(session.id)
         assert first_update.updated_at > initial_timestamp
         first_timestamp = first_update.updated_at
 
         time.sleep(1.0)  # Увеличенная задержка для надежности
 
         # Act - Второе обновление
-        session_service.update_session_location(session.id, {"location": "test2"})
+        await session_service.update_session_location(session.id, {"location": "test2"})
 
         # Assert
-        second_update = session_service.get_session(session.id)
+        second_update = await session_service.get_session(session.id)
         second_timestamp = second_update.updated_at
         assert second_timestamp > first_timestamp
 
-    def test_location_none_handling(self, session_service, test_session_data):
+    @pytest.mark.asyncio
+    async def test_location_none_handling(self, session_service, test_session_data):
         """Тест корректной обработки None значений в локализации."""
         # Arrange
-        session = session_service.create_session(test_session_data)
+        session = await session_service.create_session(test_session_data)
 
         # Act & Assert - Установка None
-        result = session_service.update_session_location(session.id, None)
+        result = await session_service.update_session_location(session.id, None)
         assert result is not None
         assert result.location is None
 
         # Act & Assert - Повторная установка None
-        result2 = session_service.update_session_location(session.id, None)
+        result2 = await session_service.update_session_location(session.id, None)
         assert result2 is not None
         assert result2.location is None
 
         # Act & Assert - Установка данных после None
         test_data = {"location": "test"}
-        result3 = session_service.update_session_location(session.id, test_data)
+        result3 = await session_service.update_session_location(session.id, test_data)
         assert result3 is not None
         assert result3.location == test_data

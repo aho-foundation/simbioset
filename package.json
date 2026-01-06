@@ -32,7 +32,6 @@
     "@solidjs/router": "^0.15.4",
     "@types/three": "^0.182.0",
     "isomorphic-dompurify": "^2.35.0",
-    "jsmind": "^0.9.1",
     "marked": "^17.0.1",
     "solid-js": "^1.9.10",
     "three": "^0.182.0"

@@ -46,7 +46,7 @@ export const MessageActions: Component<MessageActionsProps> = (props) => {
               // Не делаем ничего, пусть родительский hover управляет
             }}
           >
-            <SourcesList sources={props.sources!} />
+          <SourcesList sources={props.sources!} />
           </div>
         </Show>
       </div>

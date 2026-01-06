@@ -184,13 +184,13 @@ export const ArtifactsPanel: Component<ArtifactsPanelProps> = (props) => {
                           </button>
                         </div>
                       ) : (
-                        <button
-                          class={styles.removeButton}
-                          onClick={() => handleRemoveArtifact(artifact.id)}
-                          title="Удалить артефакт"
-                        >
-                          ×
-                        </button>
+                      <button
+                        class={styles.removeButton}
+                        onClick={() => handleRemoveArtifact(artifact.id)}
+                        title="Удалить артефакт"
+                      >
+                        ×
+                      </button>
                       )}
                     </div>
                     <div class={styles.artifactContent}>
