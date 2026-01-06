@@ -2,7 +2,6 @@
   width: 80px;
   height: 100vh;
   background: transparent;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   padding: 1.5rem 0;
@@ -12,9 +11,6 @@
 }
 
 
-.sidebar.expanded {
-  width: 240px;
-}
 
 .logo {
   margin: 0 1rem 2rem 1rem;
@@ -42,34 +38,6 @@
   background: rgba(21, 128, 61, 0.08);
 }
 
-.logoText {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  width: 100%;
-}
-
-.sidebar.expanded .logoText {
-  opacity: 1;
-}
-
-.logoTitle {
-  font-size: 1.1rem;
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
-}
-
-.tagline {
-  font-size: 0.85rem;
-  font-weight: var(--font-weight-medium);
-  color: var(--text-secondary);
-  font-style: italic;
-  letter-spacing: 0.05em;
-}
 
 .nav {
   flex: 1;
@@ -145,24 +113,4 @@
 
 .navLink.active::before {
   transform: scaleY(1);
-}
-
-.navText {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-  white-space: nowrap;
-  opacity: 0;
-  transform: translateX(-10px);
-  font-size: var(--font-base);
-  margin-left: 0.5rem;
-}
-
-.sidebar.expanded .navLink {
-  justify-content: flex-start;
-  padding: 1rem 1.25rem;
-  gap: 1rem;
-}
-
-.sidebar.expanded .navText {
-  opacity: 1;
-  transform: translateX(0);
 }

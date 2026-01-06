@@ -1,6 +1,5 @@
 import { A } from '@solidjs/router'
-import { Component, createSignal, Show } from 'solid-js'
-import { useI18n } from '~/i18n'
+import { Component } from 'solid-js'
 import styles from '~/styles/Header.module.css'
 
 // Иконки для разделов - простые и понятные
@@ -109,25 +108,12 @@ const LogoIcon = () => (
 )
 
 const Header: Component = () => {
-  const [isExpanded, setIsExpanded] = createSignal(false)
-  const { t } = useI18n()
-
   return (
-    <aside
-      class={styles.sidebar}
-      classList={{ [styles.expanded]: isExpanded() }}
-      onDblClick={() => setIsExpanded(!isExpanded())}
-    >
+    <aside class={styles.sidebar}>
       <div class={styles.logo}>
         <A href="/" class={styles.logoLink} title="Главная">
           <LogoIcon />
         </A>
-        {isExpanded() && (
-          <div class={styles.logoText}>
-            <div class={styles.logoTitle}>{t('Симбиосеть')}</div>
-            <div class={styles.tagline}>{t('Планетарный стетоскоп')}</div>
-          </div>
-        )}
       </div>
 
       <nav class={styles.nav}>
@@ -135,25 +121,16 @@ const Header: Component = () => {
           <li class={styles.navItem}>
             <A href="/sources" class={styles.navLink} activeClass={styles.active} title="Источники">
               <SourcesIcon />
-              <Show when={isExpanded()}>
-                <span class={styles.navText}>{t('Источники')}</span>
-              </Show>
             </A>
           </li>
           <li class={styles.navItem}>
             <A href="/knowledge" class={styles.navLink} activeClass={styles.active} title="Знания">
               <KnowledgeIcon />
-              <Show when={isExpanded()}>
-                <span class={styles.navText}>{t('Знания')}</span>
-              </Show>
             </A>
           </li>
           <li class={styles.navItem}>
             <A href="/projects" class={styles.navLink} activeClass={styles.active} title="Проекты">
               <ProjectsIcon />
-              <Show when={isExpanded()}>
-                <span class={styles.navText}>{t('Проекты')}</span>
-              </Show>
             </A>
           </li>
         </ul>
